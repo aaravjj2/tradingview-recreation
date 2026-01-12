@@ -1,0 +1,13 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = https://github.com/aaravjj2/tradingview-sim
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "feature/volgate-ui-integration"]
+	remote = origin
+	merge = refs/heads/feature/volgate-ui-integration
+	gk-last-accessed = 2026-01-12T19:09:29.531Z
+	gk-last-modified = 2026-01-12T19:11:20.341Z

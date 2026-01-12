@@ -1,0 +1,42 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+*.env
+.env.*
+keys.env
+
+# Caches and test artifacts
+.cache/
+.pytest_cache/
+coverage/
+htmlcov/
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Build / dist
+build/
+dist/
+
+# Logs
+logs/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Misc
+*.sqlite3
+.envrc
