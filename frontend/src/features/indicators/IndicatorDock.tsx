@@ -25,6 +25,7 @@ export function IndicatorDock() {
                 return (
                     <div
                         key={ind.id}
+                        data-testid={`active-indicator-${ind.type}`}
                         className="bg-element-bg rounded-md p-2 border border-border hover:border-accent-primary/30 transition-colors"
                     >
                         <div className="flex items-center justify-between mb-2">
@@ -33,7 +34,7 @@ export function IndicatorDock() {
                                     className="w-3 h-3 rounded-sm flex-shrink-0"
                                     style={{ backgroundColor: ind.color }}
                                 />
-                                <span className="text-sm font-medium text-text truncate">
+                                <span className="text-sm font-medium text-text">
                                     {config.shortName}
                                 </span>
                                 {ind.period && (

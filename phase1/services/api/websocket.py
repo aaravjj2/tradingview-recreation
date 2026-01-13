@@ -185,21 +185,34 @@ async def websocket_bars(
             "timeframe": timeframe,
         })
 
-        # Send recent history (Backfill)
+        # Send recent history (Backfill) using tiered store (cache preferred)
         try:
             from ..persistence.repository import BarRepository
+            from ..persistence.cache import TieredBarStore, BarCache
+
             repo = BarRepository()
-            history = await repo.get_bars(symbol.upper(), timeframe, limit=1000)
-            
-            if history:
-                # Send history in chronological order
-                for bar in sorted(history, key=lambda b: b.ts_start_ms):
+            store = TieredBarStore(cache=BarCache(), repository=repo)
+
+            recent = await store.get_recent_bars(symbol.upper(), timeframe, count=1000)
+
+            # Send history in chronological order (oldest -> newest)
+            if recent:
+                for bar in recent:
                     msg = BarMessage.from_bar(bar)
-                    # Use HISTORICAL type (frontend handles it) or CONFIRMED
-                    # msg.type = BarState.CONFIRMED.value 
                     await manager.send_personal(websocket, msg.model_dump())
-                    
-                logger.info("ws_sent_history", symbol=symbol, count=len(history))
+
+            # After sending recent bars, ensure we also send the canonical latest bar
+            try:
+                latest_bar = await store.get_latest_bar(symbol.upper(), timeframe)
+                if latest_bar and (len(recent) == 0 or latest_bar.ts_start_ms > (recent[-1].ts_start_ms if recent else 0)):
+                    latest_msg = BarMessage.from_bar(latest_bar)
+                    await manager.send_personal(websocket, latest_msg.model_dump())
+                    logger.info("ws_sent_latest_bar", symbol=symbol, bar_index=latest_bar.bar_index)
+            except Exception:
+                # Non-fatal - continue
+                pass
+
+            logger.info("ws_sent_history", symbol=symbol, count=len(recent))
         except Exception as e:
             logger.error("ws_history_send_error", error=str(e))
         

@@ -184,12 +184,42 @@ class BarRepository:
             if end_ms is not None:
                 query = query.where(BarRecord.ts_start_ms < end_ms)
             
+            # Default ordering is chronological ascending (oldest -> newest)
             query = query.order_by(BarRecord.ts_start_ms)
             query = query.limit(limit).offset(offset)
             
             result = await session.execute(query)
             records = result.scalars().all()
             
+            return [r.to_bar() for r in records]
+
+    async def get_recent_bars(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 1000,
+    ) -> List[Bar]:
+        """
+        Get the most recent N bars for a symbol/timeframe in chronological order.
+        This is useful for backfilling clients with the latest history.
+        """
+        if limit <= 0:
+            return []
+
+        async with self.db.get_session() as session:
+            # Select latest N by timestamp descending, then return in chronological order
+            query = select(BarRecord).where(
+                and_(
+                    BarRecord.symbol == symbol,
+                    BarRecord.timeframe == timeframe,
+                )
+            ).order_by(BarRecord.ts_start_ms.desc()).limit(limit)
+
+            result = await session.execute(query)
+            records = result.scalars().all()
+
+            # records are newest -> oldest, reverse for chronological
+            records = list(reversed(records))
             return [r.to_bar() for r in records]
     
     async def get_bars_by_index_range(

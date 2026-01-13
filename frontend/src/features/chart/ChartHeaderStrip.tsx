@@ -9,7 +9,7 @@ import { IndicatorsModal } from './IndicatorsModal';
 
 export function ChartHeaderStrip() {
     const { symbol, setSymbol, timeframe, setTimeframe, mode } = useAppStore();
-    const { activeIndicators } = useStore();
+    const { activeIndicators, setSymbol: setStoreSymbol } = useStore();
     const [isSymbolSearchOpen, setIsSymbolSearchOpen] = useState(false);
     const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false);
 
@@ -88,7 +88,10 @@ export function ChartHeaderStrip() {
             <SymbolSearchModal
                 open={isSymbolSearchOpen}
                 onClose={() => setIsSymbolSearchOpen(false)}
-                onSelect={(newSymbol) => setSymbol(newSymbol)}
+                onSelect={(newSymbol) => {
+                    setSymbol(newSymbol);
+                    setStoreSymbol(newSymbol);
+                }}
             />
 
             <IndicatorsModal

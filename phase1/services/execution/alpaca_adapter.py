@@ -31,16 +31,22 @@ class AlpacaConfig:
     
     @classmethod
     def from_env(cls) -> "AlpacaConfig":
-        """Load config from environment variables."""
-        api_key = os.environ.get("APCA_API_KEY_ID")
-        api_secret = os.environ.get("APCA_API_SECRET_KEY")
-        endpoint = os.environ.get("APCA_ENDPOINT", "https://paper-api.alpaca.markets")
-        
+        """Load config from environment variables.
+
+        Priority order:
+          1. ALPACA3_KEY / ALPACA3_SECRET / ALPACA3_ENDPOINT (preferred)
+          2. APCA_API_KEY_ID / APCA_API_SECRET_KEY / APCA_ENDPOINT (fallback)
+        """
+        # Prefer ALPACA3 variables (Strategy Lab / Alpaca3)
+        api_key = os.environ.get("ALPACA3_KEY") or os.environ.get("APCA_API_KEY_ID")
+        api_secret = os.environ.get("ALPACA3_SECRET") or os.environ.get("APCA_API_SECRET_KEY")
+        endpoint = os.environ.get("ALPACA3_ENDPOINT") or os.environ.get("APCA_ENDPOINT") or "https://paper-api.alpaca.markets"
+
         if not api_key:
-            raise ValueError("APCA_API_KEY_ID environment variable not set")
+            raise ValueError("Alpaca API key not set (expected ALPACA3_KEY or APCA_API_KEY_ID)")
         if not api_secret:
-            raise ValueError("APCA_API_SECRET_KEY environment variable not set")
-        
+            raise ValueError("Alpaca API secret not set (expected ALPACA3_SECRET or APCA_API_SECRET_KEY)")
+
         return cls(
             api_key=api_key,
             api_secret=api_secret,

@@ -72,6 +72,9 @@ interface AppState {
     connect: () => void;
     disconnect: () => void;
 
+    // Data helpers
+    fetchLatestBar: (symbol?: string, timeframe?: string) => Promise<void>;
+
     // Replay Actions
     fetchClockState: () => Promise<void>;
     setReplayMode: (active: boolean) => Promise<void>;
@@ -95,17 +98,42 @@ export const useStore = create<AppState>((set, get) => ({
     drawings: [],
     activeTool: 'cursor',
 
+    fetchLatestBar: async (symbol?: string, timeframe?: string) => {
+        try {
+            const s = (symbol || get().symbol).toUpperCase();
+            const tf = timeframe || get().timeframe;
+            const res = await fetch(`http://localhost:8000/api/v1/bars/${s}/${tf}/latest`);
+            if (!res.ok) return;
+            const latest = await res.json();
+
+            const candle: Candle = {
+                time: latest.ts_start_ms,
+                open: latest.open || 0,
+                high: latest.high || 0,
+                low: latest.low || 0,
+                close: latest.close || 0,
+                volume: latest.volume || 0,
+                state: 'HISTORICAL',
+            };
+
+            set({ candles: [candle], lastCandle: null });
+        } catch (e) {
+            console.error('Failed to fetch latest bar', e);
+        }
+    },
+
     setSymbol: (symbol) => {
         get().disconnect();
         set({ symbol, candles: [], lastCandle: null, drawings: [] });
-        get().connect();
-        get().fetchDrawings();
+        // Seed authoritative latest bar then connect
+        get().fetchLatestBar(symbol).then(() => { get().connect(); get().fetchDrawings(); });
     },
 
     setTimeframe: (timeframe) => {
         get().disconnect();
         set({ timeframe, candles: [], lastCandle: null });
-        get().connect();
+        // Seed authoritative latest bar for new timeframe and reconnect
+        get().fetchLatestBar(undefined, timeframe).then(() => get().connect());
     },
 
     connect: () => {
@@ -116,7 +144,8 @@ export const useStore = create<AppState>((set, get) => ({
         client.connect();
         set({ wsClient: client });
 
-        // Also fetch history? (TODO)
+        // Also fetch recent history from backend to ensure we have the latest bars
+        get().fetchLatestBar();
     },
 
     disconnect: () => {

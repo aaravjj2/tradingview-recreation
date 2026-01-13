@@ -57,12 +57,30 @@ export const ChartCanvas = ({ className }: ChartCanvasProps) => {
     useChartIndicators(chartReady ? chartRef.current : null);
 
     // Data connection effect
+    const [useMockFallback, setUseMockFallback] = useState(true);
+
     useEffect(() => {
+        // Check backend config to decide fallback behavior
+        (async () => {
+            try {
+                const res = await fetch('http://localhost:8000/api/v1/debug/config');
+                if (res.ok) {
+                    const cfg = await res.json();
+                    setUseMockFallback(cfg.ingestion_mode === 'mock');
+                }
+            } catch (e) {
+                // Keep fallback enabled if we cannot contact backend
+                console.warn('Failed to fetch backend config, keeping mock fallback enabled', e);
+            }
+        })();
+
         connect();
         const timer = setTimeout(() => {
-            if (useStore.getState().candles.length === 0) {
-                console.log('No WS data, loading mock candles...');
+            if (useStore.getState().candles.length === 0 && useMockFallback) {
+                console.log('No WS data and backend in mock mode, loading mock candles...');
                 setCandles(generateMockCandles(100));
+            } else if (useStore.getState().candles.length === 0 && !useMockFallback) {
+                console.warn('No WS data but backend is live — waiting for live data (no mock fallback)');
             }
         }, 3000);
         return () => {
@@ -193,7 +211,6 @@ export const ChartCanvas = ({ className }: ChartCanvasProps) => {
     useEffect(() => {
         if (!chartRef.current || !candleSeriesRef.current) return;
         // Indicator logic here
-        console.log('Indicators updated:', activeIndicators);
     }, [activeIndicators]);
 
     return (

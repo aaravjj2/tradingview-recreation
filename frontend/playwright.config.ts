@@ -1,9 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || `file://${path.resolve(__dirname, 'dist')}/`;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:4173';
 
 export default defineConfig({
     testDir: './tests/e2e',
@@ -24,10 +21,14 @@ export default defineConfig({
             args: [
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
-                '--allow-file-access-from-files',
-                '--disable-web-security',
             ],
         },
+    },
+    webServer: {
+        command: 'npm run preview',
+        url: 'http://localhost:4173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 60000,
     },
     projects: [
         {

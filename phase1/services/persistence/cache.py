@@ -343,12 +343,10 @@ class TieredBarStore:
         if len(cached) >= count:
             return cached[:count]
         
-        # Fall back to database
-        bars = await self.repository.get_bars(
-            symbol, timeframe, limit=count
-        )
-        
+        # Fall back to database - request the most recent bars
+        bars = await self.repository.get_recent_bars(symbol, timeframe, limit=count)
+
         # Update cache
         await self.cache.put_many(bars)
-        
+
         return bars

@@ -5,7 +5,7 @@ REST endpoints for data ingestion.
 import csv
 import io
 from typing import Optional, List
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel
 import structlog
 
@@ -244,7 +244,7 @@ async def delete_bars(
 
 
 @router.get("/provider-status")
-async def provider_status(request):
+async def provider_status(request: Request):
     """Return ingestion provider status (connector type and running state)."""
     ingestion = getattr(request.app.state, "ingestion", None)
     if not ingestion:

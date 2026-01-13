@@ -6,7 +6,7 @@
     {
       "idx": 0,
       "status": "passed",
-      "duration": 199
+      "duration": 183
     },
     {
       "idx": 1,
@@ -16,7 +16,7 @@
     {
       "idx": 2,
       "status": "passed",
-      "duration": 726
+      "duration": 27
     },
     {
       "idx": 3,
@@ -26,12 +26,12 @@
     {
       "idx": 4,
       "status": "passed",
-      "duration": 2003
+      "duration": 2002
     },
     {
       "idx": 5,
       "status": "passed",
-      "duration": 31
+      "duration": 42
     }
   ]
 }

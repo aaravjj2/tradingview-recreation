@@ -326,8 +326,9 @@ export function IndicatorsModal({ open, onClose }: IndicatorsModalProps) {
     );
 }
 
-const IndicatorListRow = ({ type: _type, config, isSelected, isFavorite, onClick, onToggleFavorite }: any) => (
+const IndicatorListRow = ({ type, config, isSelected, isFavorite, onClick, onToggleFavorite }: any) => (
     <div
+        data-testid={`indicator-row-${type}`}
         className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition group ${
             isSelected ? 'bg-accent-primary/10 border border-accent-primary/30' : 'hover:bg-element-bg border border-transparent'
         }`}

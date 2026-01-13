@@ -8,58 +8,57 @@ test.describe('Indicator System', () => {
 
     // Navigate to the built app (use Playwright baseURL)
     await page.goto('/');
-    // Wait for Shell to render specific UI element instead of generic root
-    // This confirms the React app has mounted and rendered the Shell
-    await expect(page.getByText('Indicators').first()).toBeVisible({ timeout: 10000 });
+    // Wait for Shell to render - check for nav item which has data-testid
+    await expect(page.getByTestId('nav-item-monitor')).toBeVisible({ timeout: 10000 });
   });
 
   test('should open indicator library and add RSI', async ({ page }) => {
-    // 1. Open Indicator Library
-    // Button is in ChartHeaderStrip, has text "Indicators" or icon
-    const indicatorBtn = page.getByRole('button', { name: 'Indicators' }).first();
+    // 1. Open Indicator Library - look for button in chart header strip with text Indicators
+    const indicatorBtn = page.locator('button', { hasText: 'Indicators' }).first();
     await indicatorBtn.click();
 
-    // 2. Verify Modal Opens
-    const modal = page.locator('text=Indicators').first();
-    await expect(modal).toBeVisible();
+    // 2. Verify Modal Opens - wait for dialog
+    const modal = page.getByRole('dialog');
+    await expect(modal).toBeVisible({ timeout: 5000 });
 
-    // 3. Search for RSI (short query for robustness)
+    // 3. Search for RSI
     const searchInput = page.getByPlaceholder('Search...');
     await searchInput.fill('RSI');
+    await page.waitForTimeout(300);
 
-    // 4. Select RSI row and add
-    await page.locator('.cursor-pointer', { hasText: 'Relative Strength Index' }).first().click();
+    // 4. Select RSI row using data-testid
+    await page.getByTestId('indicator-row-RSI').click();
+    
+    // 5. Verify right panel shows the indicator config with Add to Chart button
+    await expect(page.getByRole('button', { name: 'Add to Chart' })).toBeVisible({ timeout: 3000 });
     await page.getByRole('button', { name: 'Add to Chart' }).click();
 
-    // 6. Verify Modal Closes
-    // await expect(modal).not.toBeVisible(); // It might stay open depending on UX, but my code closes it on Add?
-    // Looking at IndicatorsModal.tsx: `onClose()` is called in `handleAdd`.
-    
-    // 7. Verify Indicator is Active in Right Panel
-    // First ensure Right Panel is open or open it
-    // Default might be closed or open (monitor view usually has it open? No, default is open based on Shell.tsx)
-    // Shell.tsx: `Panel defaultSize={rightDockOpen ? 75 : 100}`
-    // But let's check the RightPanel toggle if needed.
-    // The RightPanel has a tab list.
-    
-    // Check for "RSI" in the Right Panel or Legend
-    // I added "Active Indicators" list in RightPanel under "Data" tab? No, "Indicators" tab.
-    // I need to switch to "Indicators" tab in Right Panel
-    
-    // Open Right Panel 'Ind' tab and assert RSI present in dock
-    const indTab = page.getByRole('button', { name: 'Ind' });
+    // 6. Verify Indicator is Active in Right Panel
+    // Click "Ind" tab in the right dock panel (exact match to avoid hitting "Indicators" button)
+    await page.waitForTimeout(300);
+    const indTab = page.locator('button').filter({ hasText: /^Ind$/ }).first();
     await indTab.click();
-    await expect(page.locator('text=RSI')).toBeVisible();
+    await expect(page.getByTestId('active-indicator-RSI')).toBeVisible({ timeout: 3000 });
   });
 
   test('should add and remove SMA from library', async ({ page }) => {
     // Open modal and add SMA
-    await page.getByRole('button', { name: 'Indicators' }).first().click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.locator('button', { hasText: 'Indicators' }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
 
     await page.getByPlaceholder('Search...').fill('SMA');
-    await page.locator('.cursor-pointer', { hasText: 'Simple Moving Average' }).first().click();
+    // Wait a moment for search results
+    await page.waitForTimeout(300);
+    
+    // Click on the search result using data-testid
+    await page.getByTestId('indicator-row-SMA').click();
+
+    // Wait for right panel to show Add to Chart button and click it
+    await expect(page.getByRole('button', { name: 'Add to Chart' })).toBeVisible({ timeout: 3000 });
     await page.getByRole('button', { name: 'Add to Chart' }).click();
+
+    // Wait for modal to close
+    await page.waitForTimeout(500);
 
     // Ensure badge shows a number
     const badgeNum = await page.evaluate(() => {
@@ -72,11 +71,16 @@ test.describe('Indicator System', () => {
     });
     expect(badgeNum).toBeTruthy();
 
-    // Open Ind dock and remove SMA
-    await page.getByRole('button', { name: 'Ind' }).click();
-    await expect(page.locator('text=SMA')).toBeVisible();
+    // Click "Ind" tab in right panel to view added indicators
+    // Use a more specific selector that targets the tab and NOT the "Indicators" header button
+    const indTab = page.locator('button').filter({ hasText: /^Ind$/ }).first();
+    await indTab.click();
+    
+    // Wait for indicator list to render - check for indicator item by data-testid
+    await expect(page.getByTestId('active-indicator-SMA')).toBeVisible({ timeout: 5000 });
 
-    await page.locator('button[title="Remove"]').first().click();
-    await expect(page.locator('text=No indicators added')).toBeVisible();
+    // Remove the indicator using the trash button within the indicator item
+    await page.getByTestId('active-indicator-SMA').locator('button[title="Remove"]').click();
+    await expect(page.locator('text=No indicators added')).toBeVisible({ timeout: 5000 });
   });
 });
