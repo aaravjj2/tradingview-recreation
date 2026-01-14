@@ -9,11 +9,11 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { 
-    Plus, 
-    Maximize2, 
-    Minimize2, 
-    X, 
+import {
+    Plus,
+    Maximize2,
+    Minimize2,
+    X,
     GripVertical,
     LayoutGrid,
     Save,
@@ -24,7 +24,7 @@ import { useWorkspaceStore, useDashboardTiles, useTileDefinition, TILE_DEFINITIO
 import type { TilePosition } from '../../../core/types';
 
 // Tile Components - import from barrel
-import { 
+import {
     WatchlistTile,
     PositionsTile,
     OrdersTile,
@@ -39,6 +39,7 @@ import {
     CalendarTile,
     ScannerTile,
     TimeAndSalesTile,
+    UncertaintyCone,
 } from '../../trading/tiles';
 
 // Tile component mapping
@@ -57,6 +58,7 @@ const TILE_COMPONENTS: Record<string, React.ComponentType<TileProps>> = {
     calendar: CalendarTile,
     scanner: ScannerTile,
     time_sales: TimeAndSalesTile,
+    uncertainty_cone: UncertaintyCone,
 };
 
 interface TileProps {
@@ -91,7 +93,7 @@ interface TileWrapperProps {
 function TileWrapper({ tile, onRemove, onMaximize, maximizedTile }: TileWrapperProps) {
     const definition = useTileDefinition(tile.tileType);
     const isMaximized = maximizedTile === tile.tileId;
-    
+
     const TileComponent = TILE_COMPONENTS[tile.tileType] || DefaultTile;
 
     if (maximizedTile && !isMaximized) {
@@ -155,7 +157,7 @@ interface AddTileDialogProps {
 
 function AddTileDialog({ isOpen, onClose, onAdd }: AddTileDialogProps) {
     const [category, setCategory] = useState<string>('all');
-    
+
     const categories = useMemo(() => {
         const cats = new Set<string>();
         Object.values(TILE_DEFINITIONS).forEach(def => cats.add(def.category));
@@ -163,7 +165,7 @@ function AddTileDialog({ isOpen, onClose, onAdd }: AddTileDialogProps) {
     }, []);
 
     const filteredTiles = useMemo(() => {
-        return Object.entries(TILE_DEFINITIONS).filter(([_, def]) => 
+        return Object.entries(TILE_DEFINITIONS).filter(([_, def]) =>
             category === 'all' || def.category === category
         );
     }, [category]);
@@ -172,7 +174,7 @@ function AddTileDialog({ isOpen, onClose, onAdd }: AddTileDialogProps) {
 
     return (
         <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50" onClick={onClose}>
-            <div 
+            <div
                 className="bg-panel-bg border border-border rounded-lg w-[500px] max-h-[80vh] overflow-hidden"
                 onClick={e => e.stopPropagation()}
             >
@@ -191,8 +193,8 @@ function AddTileDialog({ isOpen, onClose, onAdd }: AddTileDialogProps) {
                             onClick={() => setCategory(cat)}
                             className={cn(
                                 "px-3 py-1 rounded-full text-sm capitalize whitespace-nowrap",
-                                category === cat 
-                                    ? "bg-brand text-white" 
+                                category === cat
+                                    ? "bg-brand text-white"
                                     : "bg-element-bg text-text-secondary hover:text-text"
                             )}
                         >
@@ -227,8 +229,8 @@ export function DashboardView() {
     const [maximizedTile, setMaximizedTile] = useState<string | null>(null);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const tiles = useDashboardTiles();
-    const { 
-        addTile, 
+    const {
+        addTile,
         removeTile,
         activeLayoutId,
         updateLayout,
@@ -318,7 +320,7 @@ export function DashboardView() {
                         </button>
                     </div>
                 ) : (
-                    <div 
+                    <div
                         className="grid gap-4 auto-rows-[200px]"
                         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}
                     >

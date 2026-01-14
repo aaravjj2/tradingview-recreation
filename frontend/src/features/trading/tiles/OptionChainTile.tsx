@@ -1,9 +1,8 @@
-/**
- * Option Chain Tile - Options pricing grid
- */
-
-import { useState } from 'react';
+import { useMemo, useEffect } from 'react';
 import { cn } from '../../../ui/utils';
+import { useOptionsStore } from '../../options/store';
+import { useAppStore } from '../../../state/appStore';
+import type { OptionContract } from '../../options/types';
 
 interface TileProps {
     tileId: string;
@@ -12,58 +11,94 @@ interface TileProps {
     isMaximized: boolean;
 }
 
-interface OptionContract {
-    strike: number;
-    callBid: number;
-    callAsk: number;
-    callVolume: number;
-    callOI: number;
-    putBid: number;
-    putAsk: number;
-    putVolume: number;
-    putOI: number;
-    callIV: number;
-    putIV: number;
-}
+export function OptionChainTile({ }: TileProps) {
+    const { symbol: appSymbol } = useAppStore();
+    const {
+        chain,
+        chainLoading,
+        selectedExpiration,
+        setSelectedExpiration,
+        fetchAll
+    } = useOptionsStore();
 
-const underlyingPrice = 178.52;
+    // Sync with app symbol
+    useEffect(() => {
+        if (appSymbol) {
+            fetchAll(appSymbol);
+        }
+    }, [appSymbol, fetchAll]);
 
-const MOCK_CHAIN: OptionContract[] = [
-    { strike: 165, callBid: 14.20, callAsk: 14.40, callVolume: 1234, callOI: 5678, putBid: 0.45, putAsk: 0.50, putVolume: 567, putOI: 2345, callIV: 0.28, putIV: 0.32 },
-    { strike: 170, callBid: 9.80, callAsk: 10.00, callVolume: 2345, callOI: 8901, putBid: 1.10, putAsk: 1.20, putVolume: 890, putOI: 3456, callIV: 0.26, putIV: 0.30 },
-    { strike: 175, callBid: 5.90, callAsk: 6.10, callVolume: 4567, callOI: 12345, putBid: 2.30, putAsk: 2.45, putVolume: 1234, putOI: 5678, callIV: 0.24, putIV: 0.28 },
-    { strike: 180, callBid: 3.20, callAsk: 3.40, callVolume: 5678, callOI: 15678, putBid: 4.50, putAsk: 4.70, putVolume: 2345, putOI: 7890, callIV: 0.23, putIV: 0.26 },
-    { strike: 185, callBid: 1.45, callAsk: 1.55, callVolume: 3456, callOI: 10234, putBid: 7.80, putAsk: 8.00, putVolume: 1567, putOI: 4567, callIV: 0.25, putIV: 0.27 },
-    { strike: 190, callBid: 0.55, callAsk: 0.65, callVolume: 1234, callOI: 6789, putBid: 12.00, putAsk: 12.30, putVolume: 890, putOI: 3456, callIV: 0.28, putIV: 0.30 },
-];
+    const chainData = useMemo(() => {
+        if (!chain || !chain.contracts) return [];
 
-export function OptionChainTile({ tileId: _tileId, isMaximized: _isMaximized }: TileProps) {
-    const [expiry, setExpiry] = useState('2024-01-19');
+        // Group contracts by strike
+        const strikesMap = new Map<number, { strike: number; call?: OptionContract; put?: OptionContract }>();
+        const contracts = chain.contracts.filter(c => c.expiration === selectedExpiration);
+
+        contracts.forEach(contract => {
+            const strike = contract.strike;
+            if (!strikesMap.has(strike)) {
+                strikesMap.set(strike, { strike });
+            }
+            const entry = strikesMap.get(strike)!;
+            if (contract.optionType === 'call') {
+                entry.call = contract;
+            } else {
+                entry.put = contract;
+            }
+        });
+
+        // Return ATM +/- 10 strikes for better visibility in tile
+        const underlying = chain.underlyingPrice;
+        return Array.from(strikesMap.values())
+            .sort((a, b) => a.strike - b.strike)
+            .filter(a => Math.abs(a.strike - underlying) < underlying * 0.15);
+    }, [chain, selectedExpiration]);
+
+    if (chainLoading && chainData.length === 0) {
+        return (
+            <div className="h-full flex items-center justify-center text-text-muted text-xs">
+                Loading options...
+            </div>
+        );
+    }
+
+    if (!appSymbol) {
+        return (
+            <div className="h-full flex items-center justify-center text-text-muted text-xs">
+                Select a symbol to view options
+            </div>
+        );
+    }
 
     return (
-        <div className="h-full flex flex-col text-xs">
+        <div className="h-full flex flex-col text-xs bg-background overflow-hidden">
             {/* Expiry selector */}
-            <div className="flex items-center gap-2 p-2 border-b border-border">
-                <span className="text-text-muted">Expiry:</span>
+            <div className="flex items-center gap-2 p-2 border-b border-border bg-panel-bg/50">
+                <span className="text-xxs text-text-secondary uppercase font-bold">Expiry:</span>
                 <select
-                    value={expiry}
-                    onChange={(e) => setExpiry(e.target.value)}
-                    className="bg-element-bg text-text rounded px-2 py-1 border border-border"
+                    value={selectedExpiration || ''}
+                    onChange={(e) => setSelectedExpiration(e.target.value)}
+                    className="bg-element-bg text-text rounded px-2 py-0.5 border border-border text-xs focus:outline-none"
+                    disabled={!chain}
                 >
-                    <option value="2024-01-19">Jan 19, 2024</option>
-                    <option value="2024-01-26">Jan 26, 2024</option>
-                    <option value="2024-02-16">Feb 16, 2024</option>
+                    {chain?.expirations.map(exp => (
+                        <option key={exp} value={exp}>{exp}</option>
+                    ))}
                 </select>
-                <span className="text-text-muted ml-auto">AAPL @ ${underlyingPrice}</span>
+                <div className="ml-auto text-xxs font-mono">
+                    <span className="text-text-secondary">{appSymbol}</span>
+                    <span className="text-text ml-1 px-1 bg-brand/10 rounded">${chain?.underlyingPrice?.toFixed(2) || '0.00'}</span>
+                </div>
             </div>
 
             {/* Header */}
-            <div className="grid grid-cols-9 gap-1 px-2 py-1 text-xxs text-text-muted border-b border-border bg-element-bg/50">
+            <div className="grid grid-cols-9 gap-1 px-2 py-1 text-xxs text-text-secondary border-b border-border bg-element-bg/30 font-bold uppercase tracking-tighter">
                 <div className="text-center">Bid</div>
                 <div className="text-center">Ask</div>
                 <div className="text-center">Vol</div>
                 <div className="text-center">IV</div>
-                <div className="text-center font-semibold text-text">Strike</div>
+                <div className="text-center font-bold text-text bg-brand/5 border-x border-brand/10">Strike</div>
                 <div className="text-center">IV</div>
                 <div className="text-center">Vol</div>
                 <div className="text-center">Bid</div>
@@ -71,42 +106,61 @@ export function OptionChainTile({ tileId: _tileId, isMaximized: _isMaximized }: 
             </div>
 
             {/* Chain */}
-            <div className="flex-1 overflow-y-auto">
-                {MOCK_CHAIN.map((opt) => {
-                    const isITMCall = opt.strike < underlyingPrice;
-                    const isITMPut = opt.strike > underlyingPrice;
-                    const isATM = Math.abs(opt.strike - underlyingPrice) < 2.5;
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {chainData.length === 0 ? (
+                    <div className="py-8 text-center text-text-muted opacity-50">No data found</div>
+                ) : (
+                    chainData.map((row) => {
+                        const call = row.call;
+                        const put = row.put;
+                        const underlying = chain?.underlyingPrice || 0;
+                        const isITMCall = row.strike < underlying;
+                        const isITMPut = row.strike > underlying;
+                        const isATM = Math.abs(row.strike - underlying) < (underlying * 0.01);
 
-                    return (
-                        <div
-                            key={opt.strike}
-                            className={cn(
-                                "grid grid-cols-9 gap-1 px-2 py-1.5 border-b border-border/50 hover:bg-element-bg",
-                                isATM && "bg-brand/10"
-                            )}
-                        >
-                            {/* Calls */}
-                            <div className={cn("text-center", isITMCall && "bg-green-500/10")}>{opt.callBid.toFixed(2)}</div>
-                            <div className={cn("text-center", isITMCall && "bg-green-500/10")}>{opt.callAsk.toFixed(2)}</div>
-                            <div className={cn("text-center text-text-muted", isITMCall && "bg-green-500/10")}>{opt.callVolume}</div>
-                            <div className={cn("text-center text-text-muted", isITMCall && "bg-green-500/10")}>{(opt.callIV * 100).toFixed(0)}%</div>
-                            
-                            {/* Strike */}
-                            <div className={cn(
-                                "text-center font-semibold",
-                                isATM ? "text-brand" : "text-text"
-                            )}>
-                                {opt.strike}
+                        return (
+                            <div
+                                key={row.strike}
+                                className={cn(
+                                    "grid grid-cols-9 gap-1 px-2 py-1.5 border-b border-border/30 hover:bg-element-bg/50 transition-colors",
+                                    isATM && "bg-brand/5 shadow-inner"
+                                )}
+                            >
+                                {/* Calls */}
+                                <div className={cn("text-right font-mono", isITMCall ? "text-green-500 font-bold" : "text-text-secondary")}>
+                                    {call?.bid?.toFixed(2) || '-'}
+                                </div>
+                                <div className={cn("text-right font-mono", isITMCall ? "text-green-400" : "text-text-secondary")}>
+                                    {call?.ask?.toFixed(2) || '-'}
+                                </div>
+                                <div className="text-center text-xxs text-text-muted tabular-nums">{call?.volume || '0'}</div>
+                                <div className="text-center text-xxs text-text-muted">
+                                    {call?.impliedVolatility ? (call.impliedVolatility * 100).toFixed(0) + '%' : '-'}
+                                </div>
+
+                                {/* Strike */}
+                                <div className={cn(
+                                    "text-center font-bold border-x border-border/20 bg-brand/5 tabular-nums",
+                                    isATM ? "text-brand" : "text-text"
+                                )}>
+                                    {row.strike.toFixed(1)}
+                                </div>
+
+                                {/* Puts */}
+                                <div className="text-center text-xxs text-text-muted">
+                                    {put?.impliedVolatility ? (put.impliedVolatility * 100).toFixed(0) + '%' : '-'}
+                                </div>
+                                <div className="text-center text-xxs text-text-muted tabular-nums">{put?.volume || '0'}</div>
+                                <div className={cn("text-right font-mono", isITMPut ? "text-red-400" : "text-text-secondary")}>
+                                    {put?.bid?.toFixed(2) || '-'}
+                                </div>
+                                <div className={cn("text-right font-mono", isITMPut ? "text-red-500 font-bold" : "text-text-secondary")}>
+                                    {put?.ask?.toFixed(2) || '-'}
+                                </div>
                             </div>
-                            
-                            {/* Puts */}
-                            <div className={cn("text-center text-text-muted", isITMPut && "bg-red-500/10")}>{(opt.putIV * 100).toFixed(0)}%</div>
-                            <div className={cn("text-center text-text-muted", isITMPut && "bg-red-500/10")}>{opt.putVolume}</div>
-                            <div className={cn("text-center", isITMPut && "bg-red-500/10")}>{opt.putBid.toFixed(2)}</div>
-                            <div className={cn("text-center", isITMPut && "bg-red-500/10")}>{opt.putAsk.toFixed(2)}</div>
-                        </div>
-                    );
-                })}
+                        );
+                    })
+                )}
             </div>
         </div>
     );

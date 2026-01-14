@@ -1,8 +1,8 @@
-import { History, Layers, Bell, Settings, FileText, Wallet, ChevronLeft, ChevronRight, BarChart3, Grid3X3, Bot, AlertTriangle } from 'lucide-react';
+import { History, Layers, Bell, Settings, FileText, Wallet, ChevronLeft, ChevronRight, BarChart3, Grid3X3, Bot, AlertTriangle, TrendingUp } from 'lucide-react';
 import { cn } from '../../../ui/utils';
 import { useAppStore } from '../../../state/appStore';
 
-export type ViewId = 'monitor' | 'dashboard' | 'replay' | 'strategies' | 'alerts' | 'portfolio' | 'reports' | 'automation' | 'incidents' | 'settings';
+export type ViewId = 'monitor' | 'dashboard' | 'options' | 'replay' | 'strategies' | 'alerts' | 'portfolio' | 'reports' | 'automation' | 'incidents' | 'settings';
 
 interface LeftNavProps {
     activeView: ViewId;
@@ -22,13 +22,14 @@ interface NavItemProps {
 const navItems: { id: ViewId; icon: React.ReactNode; label: string; shortcut: string }[] = [
     { id: 'monitor', icon: <BarChart3 size={20} />, label: 'Chart', shortcut: '⌘1' },
     { id: 'dashboard', icon: <Grid3X3 size={20} />, label: 'Dashboard', shortcut: '⌘2' },
-    { id: 'replay', icon: <History size={20} />, label: 'Replay', shortcut: '⌘3' },
-    { id: 'strategies', icon: <Layers size={20} />, label: 'Strategies', shortcut: '⌘4' },
-    { id: 'alerts', icon: <Bell size={20} />, label: 'Alerts', shortcut: '⌘5' },
-    { id: 'portfolio', icon: <Wallet size={20} />, label: 'Portfolio', shortcut: '⌘6' },
+    { id: 'options', icon: <TrendingUp size={20} />, label: 'Options', shortcut: '⌘3' },
+    { id: 'replay', icon: <History size={20} />, label: 'Replay', shortcut: '⌘4' },
+    { id: 'strategies', icon: <Layers size={20} />, label: 'Strategies', shortcut: '⌘5' },
+    { id: 'alerts', icon: <Bell size={20} />, label: 'Alerts', shortcut: '⌘6' },
+    { id: 'portfolio', icon: <Wallet size={20} />, label: 'Portfolio', shortcut: '⌘7' },
     { id: 'reports', icon: <FileText size={20} />, label: 'Reports', shortcut: '' },
-    { id: 'automation', icon: <Bot size={20} />, label: 'Automation', shortcut: '⌘7' },
-    { id: 'incidents', icon: <AlertTriangle size={20} />, label: 'Incidents', shortcut: '⌘8' },
+    { id: 'automation', icon: <Bot size={20} />, label: 'Automation', shortcut: '⌘8' },
+    { id: 'incidents', icon: <AlertTriangle size={20} />, label: 'Incidents', shortcut: '⌘9' },
 ];
 
 function NavItem({ id, icon, label, shortcut, activeView, onViewChange, expanded }: NavItemProps) {

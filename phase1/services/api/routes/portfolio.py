@@ -84,6 +84,34 @@ async def get_position(symbol: str):
     raise HTTPException(status_code=404, detail="Position not found")
 
 
+class OrderResponse(BaseModel):
+    id: str
+    symbol: str
+    side: str
+    quantity: float
+    order_type: str
+    status: str
+    submitted_at: str
+    filled_at: Optional[str] = None
+    limit_price: Optional[float] = None
+    filled_price: Optional[float] = None
+
+
+# In-memory orders state
+_orders_state: List[dict] = []
+
+
+@router.get("/orders", response_model=List[OrderResponse])
+async def get_orders(status: Optional[str] = None, limit: int = 100):
+    """Get pending and recent orders."""
+    orders = _orders_state
+    
+    if status:
+        orders = [o for o in orders if o.get("status", "").lower() == status.lower()]
+    
+    return [OrderResponse(**o) for o in orders[-limit:]]
+
+
 @router.get("/trades", response_model=List[TradeResponse])
 async def get_trades(limit: int = 100, symbol: Optional[str] = None):
     """Get trade history."""

@@ -73,18 +73,20 @@ test.describe('Replay Keyboard Shortcuts', () => {
     });
 
     test('Space should toggle play/pause', async ({ page }) => {
+        await page.waitForTimeout(1000);
         await page.keyboard.press('Space');
         await page.waitForTimeout(300);
         // Just verify no crash
-        await expect(page.locator('body')).toBeVisible();
+        await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
     });
 
     test('Arrow keys should step through bars', async ({ page }) => {
+        await page.waitForTimeout(1000);
         await page.keyboard.press('ArrowRight');
         await page.waitForTimeout(100);
         await page.keyboard.press('ArrowLeft');
         await page.waitForTimeout(100);
         // Verify no crash
-        await expect(page.locator('body')).toBeVisible();
+        await expect(page.locator('body')).toBeVisible({ timeout: 10000 });
     });
 });

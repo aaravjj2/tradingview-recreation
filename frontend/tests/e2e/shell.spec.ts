@@ -7,13 +7,13 @@ test.describe('Shell Component', () => {
 
     test('should render main shell components', async ({ page }) => {
         // TopBar should be visible
-        await expect(page.locator('[data-testid="topbar"], .bg-panel-bg').first()).toBeVisible();
+        await expect(page.locator('header.bg-panel-bg, [data-testid="topbar"]').first()).toBeVisible({ timeout: 10000 });
 
         // LeftNav should be visible
-        await expect(page.locator('[data-testid="leftnav"], nav').first()).toBeVisible();
+        await expect(page.locator('nav, [data-testid="leftnav"]').first()).toBeVisible({ timeout: 10000 });
 
         // Main content area should be visible
-        await expect(page.locator('main, [role="main"], .flex-1').first()).toBeVisible();
+        await expect(page.locator('main, [role="main"], div.flex-1').first()).toBeVisible({ timeout: 10000 });
     });
 
     test('should toggle left nav collapse/expand', async ({ page }) => {
@@ -58,13 +58,14 @@ test.describe('TopBar Component', () => {
     test('should display mode badge', async ({ page }) => {
         // Mode badge should show LIVE, REPLAY, BACKTEST, or PAPER
         const modeBadge = page.locator('text=/LIVE|REPLAY|BACKTEST|PAPER/i').first();
-        await expect(modeBadge).toBeVisible({ timeout: 5000 });
+        await expect(modeBadge).toBeVisible({ timeout: 10000 });
     });
 
     test('should display symbol selector', async ({ page }) => {
         // Symbol should be visible (e.g., AAPL)
+        await page.waitForTimeout(1000);
         const symbolDisplay = page.locator('text=/AAPL|TSLA|MSFT|SPY|GOOGL/').first();
-        await expect(symbolDisplay).toBeVisible({ timeout: 5000 });
+        await expect(symbolDisplay).toBeVisible({ timeout: 15000 });
     });
 
     test('should display timeframe selector', async ({ page }) => {

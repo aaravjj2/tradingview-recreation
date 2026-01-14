@@ -12,7 +12,7 @@ import structlog
 
 from ..config import get_settings
 from ..persistence import init_database, get_database
-from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options
+from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast
 from .websocket import router as ws_router
 
 
@@ -121,6 +121,11 @@ def create_app() -> FastAPI:
     app.include_router(notes.router, prefix="/api/v1", tags=["notes"])
     app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
     app.include_router(options.router, prefix="/api/v1", tags=["options"])
+    app.include_router(profiles.router, prefix="/api/v1/profiles", tags=["profiles"])
+    app.include_router(patterns.router, prefix="/api/v1/patterns", tags=["patterns"])
+    app.include_router(fundamentals.router, prefix="/api/v1/fundamentals", tags=["fundamentals"])
+    app.include_router(automation.router, prefix="/api/v1", tags=["automation"])
+    app.include_router(forecast.router, prefix="/api/v1", tags=["forecast"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
     
     # Global exception handler

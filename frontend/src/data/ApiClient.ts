@@ -189,4 +189,139 @@ export const ApiClient = {
         const res = await fetch(`${API_BASE}/alerts/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete alert');
     },
+
+    // Automation (Autopilot)
+    async getAutomationStatus(): Promise<AutopilotStatus> {
+        try {
+            const res = await fetch(`${API_BASE}/automation/status`);
+            if (!res.ok) return getDefaultAutopilotStatus();
+            return res.json();
+        } catch {
+            return getDefaultAutopilotStatus();
+        }
+    },
+
+    async armAutomation(mode: 'paper' | 'live', confirmLive: boolean = false): Promise<AutopilotStatus> {
+        const res = await fetch(`${API_BASE}/automation/arm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode, confirm_live: confirmLive }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to arm automation');
+        }
+        return res.json();
+    },
+
+    async disarmAutomation(): Promise<AutopilotStatus> {
+        const res = await fetch(`${API_BASE}/automation/disarm`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to disarm automation');
+        return res.json();
+    },
+
+    async killAutomation(): Promise<AutopilotStatus> {
+        const res = await fetch(`${API_BASE}/automation/kill`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to trigger kill switch');
+        return res.json();
+    },
+
+    async resetAutomation(): Promise<AutopilotStatus> {
+        const res = await fetch(`${API_BASE}/automation/reset`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to reset automation');
+        return res.json();
+    },
+
+    // Forecast (Uncertainty Cone)
+    async getForecast(symbol: string, days: number = 30, confidence: string = '0.68,0.95'): Promise<ForecastResponse> {
+        const res = await fetch(`${API_BASE}/forecast/${symbol}?days=${days}&confidence=${encodeURIComponent(confidence)}`);
+        if (!res.ok) throw new Error('Failed to fetch forecast');
+        return res.json();
+    },
+
+    // Forecast Config (Unified Autopilot)
+    async updateForecastConfig(config: ForecastConfig): Promise<AutopilotStatus> {
+        const res = await fetch(`${API_BASE}/automation/forecast-config`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to update forecast config');
+        }
+        return res.json();
+    },
+
+    async getForecastStatus(symbol: string = 'AAPL'): Promise<ForecastStatus> {
+        const res = await fetch(`${API_BASE}/automation/forecast-status?symbol=${symbol}`);
+        if (!res.ok) return { symbol };
+        return res.json();
+    },
 };
+
+// Automation types
+export interface ForecastConfig {
+    enabled: boolean;
+    confidence_level: number;
+    use_for_filtering: boolean;
+    use_for_sizing: boolean;
+    max_volatility_threshold: number;
+}
+
+export interface ForecastStatus {
+    symbol: string;
+    bias?: 'bullish' | 'bearish' | 'neutral';
+    historical_volatility?: number;
+    upper_bound_30d?: number;
+    lower_bound_30d?: number;
+    size_multiplier?: number;
+}
+
+export interface AutopilotStatus {
+    armed: boolean;
+    mode: 'paper' | 'live';
+    budget: BudgetConfig;
+    current_spent_today: number;
+    active_strategies: string[];
+    kill_switch_triggered: boolean;
+    forecast_config?: ForecastConfig;
+    forecast_status?: ForecastStatus;
+}
+
+export interface BudgetConfig {
+    max_total_notional: number;
+    max_daily_spend: number;
+    max_per_trade: number;
+    max_concurrent_positions: number;
+    max_leverage: number;
+    hard_drawdown_stop: number;
+}
+
+export interface ForecastResponse {
+    symbol: string;
+    current_price: number;
+    forecast_days: number;
+    historical_volatility: number;
+    daily_volatility: number;
+    cones: Record<string, { upper: number[]; lower: number[]; median: number[] }>;
+    generated_at: string;
+}
+
+function getDefaultAutopilotStatus(): AutopilotStatus {
+    return {
+        armed: false,
+        mode: 'paper',
+        budget: {
+            max_total_notional: 10000,
+            max_daily_spend: 1000,
+            max_per_trade: 500,
+            max_concurrent_positions: 5,
+            max_leverage: 1,
+            hard_drawdown_stop: 0.1,
+        },
+        current_spent_today: 0,
+        active_strategies: [],
+        kill_switch_triggered: false,
+    };
+}

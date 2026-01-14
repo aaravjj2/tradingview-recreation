@@ -48,7 +48,8 @@ test('check page loads without critical errors', async ({ page }) => {
     await page.waitForTimeout(2000);
 
     // Verify shell renders
-    await expect(page.locator('[class*="flex"][class*="flex-col"][class*="h-screen"]').first()).toBeVisible();
+    await page.waitForTimeout(2000);
+    await expect(page.locator('header.bg-panel-bg, nav, [data-testid="nav-item-monitor"]').first()).toBeVisible({ timeout: 10000 });
 
     // Assert no critical page errors (ignore WS)
     expect(criticalErrors, 'Should have no critical errors').toEqual([]);

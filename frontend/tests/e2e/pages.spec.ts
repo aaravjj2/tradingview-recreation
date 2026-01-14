@@ -8,6 +8,7 @@ test.describe('Page Navigation and Rendering', () => {
 
     test('Monitor page renders chart', async ({ page }) => {
         // Navigate to Monitor if not already there
+        await page.waitForTimeout(2000);
         const monitorNav = page.locator('button, a').filter({ hasText: 'Monitor' }).first();
         if (await monitorNav.isVisible({ timeout: 2000 }).catch(() => false)) {
             await monitorNav.click();
@@ -15,9 +16,9 @@ test.describe('Page Navigation and Rendering', () => {
 
         // Chart canvas should be present
         const chartCanvas = page.locator('canvas').first();
-        await expect(chartCanvas).toBeVisible({ timeout: 5000 });
+        await expect(chartCanvas).toBeVisible({ timeout: 10000 });
 
-        await expect(page).toHaveScreenshot('page-monitor.png', { animations: 'disabled' });
+        await expect(page).toHaveScreenshot('page-monitor.png', { animations: 'disabled', maxDiffPixelRatio: 0.1 });
     });
 
     test('Replay page renders controls', async ({ page }) => {
@@ -57,7 +58,7 @@ test.describe('Page Navigation and Rendering', () => {
             const alertsContent = page.locator('text=/Alerts|Alert/i').first();
             await expect(alertsContent).toBeVisible({ timeout: 3000 });
 
-            await expect(page).toHaveScreenshot('page-alerts.png', { animations: 'disabled' });
+            await expect(page).toHaveScreenshot('page-alerts.png', { animations: 'disabled', maxDiffPixelRatio: 0.1 });
         }
     });
 

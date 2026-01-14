@@ -17,9 +17,11 @@ import { SettingsView } from '../views/SettingsView';
 import { DashboardView } from '../views/DashboardView';
 import { AutomationView } from '../views/AutomationView';
 import { IncidentsView } from '../views/IncidentsView';
+import { OptionsView } from '../views/OptionsView';
 import { ToastProvider } from '../../../ui/Toast';
 import { useAppStore } from '../../../state/appStore';
 import { useWorkspaceStore } from '../../../state/workspaceStore';
+import { TrustUX } from './TrustUX';
 
 export function Shell() {
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -40,10 +42,11 @@ export function Shell() {
             if (e.metaKey || e.ctrlKey) {
                 if (e.key === '1') { e.preventDefault(); setActiveView('monitor'); setActiveWorkspace('chart'); }
                 if (e.key === '2') { e.preventDefault(); setActiveView('dashboard'); setActiveWorkspace('dashboard'); }
-                if (e.key === '3') { e.preventDefault(); setActiveView('replay'); setMode('REPLAY'); }
-                if (e.key === '4') { e.preventDefault(); setActiveView('strategies'); }
-                if (e.key === '5') { e.preventDefault(); setActiveView('alerts'); }
-                if (e.key === '6') { e.preventDefault(); setActiveView('portfolio'); }
+                if (e.key === '3') { e.preventDefault(); setActiveView('options'); }
+                if (e.key === '4') { e.preventDefault(); setActiveView('replay'); setMode('REPLAY'); }
+                if (e.key === '5') { e.preventDefault(); setActiveView('strategies'); }
+                if (e.key === '6') { e.preventDefault(); setActiveView('alerts'); }
+                if (e.key === '7') { e.preventDefault(); setActiveView('portfolio'); }
                 // Undo/Redo (placeholder - would connect to drawing store)
                 if (e.key === 'z') {
                     e.preventDefault();
@@ -146,6 +149,8 @@ export function Shell() {
                 );
             case 'dashboard':
                 return <DashboardView />;
+            case 'options':
+                return <OptionsView />;
             case 'replay':
                 return <ReplayView />;
             case 'strategies':
@@ -181,6 +186,9 @@ export function Shell() {
                 </div>
 
                 <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+
+                {/* Trust UX - Always visible floating badge */}
+                <TrustUX />
             </div>
         </ToastProvider>
     );

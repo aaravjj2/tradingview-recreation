@@ -351,6 +351,28 @@ async def get_options_chain(
         )
 
 
+
+@router.get("/expirations/{symbol}", response_model=List[str])
+async def get_options_expirations(symbol: str):
+    """
+    Get available expiration dates for a symbol
+    """
+    logger.info("options_expirations_request", symbol=symbol)
+    
+    try:
+        adapter = get_options_adapter()
+        chain = adapter.get_chain(symbol)
+        
+        if chain is None or not chain.expirations:
+             return []
+             
+        return [e.isoformat() for e in chain.expirations]
+        
+    except Exception as e:
+        logger.error("options_expirations_error", symbol=symbol, error=str(e))
+        return []
+
+
 @router.get("/greeks/{symbol}", response_model=GreeksResponse)
 async def calculate_option_greeks(
     symbol: str,

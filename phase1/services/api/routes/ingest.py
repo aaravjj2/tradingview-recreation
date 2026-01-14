@@ -255,3 +255,37 @@ async def provider_status(request: Request):
     running = connector.is_running if connector else False
 
     return {"provider": provider_name, "running": running}
+
+
+@router.get("/status")
+async def ingestion_status(request: Request):
+    """Return detailed ingestion status including mode, provider, last tick time."""
+    ingestion = getattr(request.app.state, "ingestion", None)
+    if not ingestion:
+        return {
+            "mode": "unknown",
+            "provider": None,
+            "running": False,
+            "last_tick_time": None,
+            "symbols": [],
+        }
+
+    connector = getattr(ingestion, "connector", None)
+    provider_name = connector.name if connector else None
+    running = connector.is_running if connector else False
+
+    # Get last tick time from bar engine if available
+    bar_engine = getattr(ingestion, "bar_engine", None)
+    last_tick_time = None
+    if bar_engine:
+        # Bar engine should track last tick timestamp
+        # For now, return current time if running
+        last_tick_time = ingestion.mode if running else None
+
+    return {
+        "mode": ingestion.mode,
+        "provider": provider_name,
+        "running": running,
+        "last_tick_time": last_tick_time,
+        "symbols": ingestion.symbols,
+    }

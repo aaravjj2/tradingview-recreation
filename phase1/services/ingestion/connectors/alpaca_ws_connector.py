@@ -10,6 +10,7 @@ import json
 from typing import Optional, List
 import structlog
 import websockets
+from websockets.exceptions import ConnectionClosed
 
 from .base import BaseConnector
 from ...models import RawTick
@@ -33,6 +34,7 @@ class AlpacaWSConnector(BaseConnector):
         self._task: Optional[asyncio.Task] = None
         self._subscribed: set[str] = set()
         self._reconnect_delay = 2
+        self._send_lock = asyncio.Lock()
 
         if not self.api_key or not self.api_secret:
             self.logger.warning("no_api_credentials", msg="Alpaca WS credentials not configured")
@@ -71,24 +73,24 @@ class AlpacaWSConnector(BaseConnector):
 
         # If already connected, send subscribe message
         if self._ws and self._ws.open and self._subscribed:
-            try:
-                msg = {"action": "subscribe", "quotes": list(self._subscribed)}
-                await self._ws.send(json.dumps(msg))
+            msg = {"action": "subscribe", "quotes": list(self._subscribed)}
+            sent = await self._safe_send(json.dumps(msg))
+            if sent:
                 self.logger.info("alpaca_ws_subscribed", symbols=list(self._subscribed))
-            except Exception as e:
-                self.logger.warning("alpaca_ws_subscribe_error", error=str(e))
+            else:
+                self.logger.warning("alpaca_ws_subscribe_error", error="send_failed")
 
     async def unsubscribe(self, symbols: List[str]) -> None:
         for s in symbols:
             self._subscribed.discard(s.upper())
 
         if self._ws and self._ws.open:
-            try:
-                msg = {"action": "unsubscribe", "quotes": list(symbols)}
-                await self._ws.send(json.dumps(msg))
+            msg = {"action": "unsubscribe", "quotes": list(symbols)}
+            sent = await self._safe_send(json.dumps(msg))
+            if sent:
                 self.logger.info("alpaca_ws_unsubscribed", symbols=symbols)
-            except Exception as e:
-                self.logger.warning("alpaca_ws_unsubscribe_error", error=str(e))
+            else:
+                self.logger.warning("alpaca_ws_unsubscribe_error", error="send_failed")
 
     async def get_historical_ticks(self, symbol: str, start_ms: int, end_ms: int):
         # Use the REST endpoints via the existing AlpacaConnector for historicals
@@ -107,7 +109,11 @@ class AlpacaWSConnector(BaseConnector):
                     self._ws = ws
                     # Authenticate
                     auth_msg = {"action": "auth", "key": self.api_key, "secret": self.api_secret}
-                    await ws.send(json.dumps(auth_msg))
+                    sent = await self._safe_send(json.dumps(auth_msg))
+                    if not sent:
+                        self.logger.warning("alpaca_ws_auth_send_failed")
+                        await asyncio.sleep(self._reconnect_delay)
+                        continue
                     # Wait for auth response
                     try:
                         auth_resp = await asyncio.wait_for(ws.recv(), timeout=5)
@@ -129,7 +135,11 @@ class AlpacaWSConnector(BaseConnector):
                     # Subscribe to any existing symbols
                     if self._subscribed:
                         sub_msg = {"action": "subscribe", "quotes": list(self._subscribed)}
-                        await ws.send(json.dumps(sub_msg))
+                        sent = await self._safe_send(json.dumps(sub_msg))
+                        if sent:
+                            self.logger.info("alpaca_ws_subscribed_on_connect", symbols=list(self._subscribed))
+                        else:
+                            self.logger.warning("alpaca_ws_subscribe_on_connect_failed", symbols=list(self._subscribed))
 
                     # Stream messages
                     while self._running:
@@ -140,10 +150,13 @@ class AlpacaWSConnector(BaseConnector):
                             # Send ping to keep session alive
                             try:
                                 pong = json.dumps({"action": "ping"})
-                                await ws.send(pong)
+                                sent = await self._safe_send(pong)
+                                if not sent:
+                                    # If cannot send ping, break to reconnect
+                                    break
                             except Exception:
-                                pass
-                        except websockets.exceptions.ConnectionClosed:
+                                break
+                        except ConnectionClosed:
                             break
                         except Exception as e:
                             self.logger.error("alpaca_ws_handle_error", error=str(e))
@@ -237,3 +250,19 @@ class AlpacaWSConnector(BaseConnector):
             return int(dt.timestamp() * 1000)
         except Exception:
             return 0
+
+    async def _safe_send(self, payload: str) -> bool:
+        """Safely send a payload over the websocket; return True on success."""
+        if not self._ws or not getattr(self._ws, "open", False) or getattr(self._ws, "closed", False):
+            self.logger.warning("alpaca_ws_send_skipped", reason="not_connected")
+            return False
+        try:
+            async with self._send_lock:
+                await self._ws.send(payload)
+            return True
+        except ConnectionClosed as e:
+            self.logger.warning("alpaca_ws_send_failed_closed", error=str(e))
+            return False
+        except Exception as e:
+            self.logger.error("alpaca_ws_send_failed", error=str(e))
+            return False

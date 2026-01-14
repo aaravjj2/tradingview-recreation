@@ -56,3 +56,27 @@ async def test_alpaca_ws_handle_message_parses_and_emits():
     assert tick.source == 'alpaca'
     assert tick.symbol == 'AAPL'
     assert tick.ts_ms > 0
+
+
+@pytest.mark.asyncio
+async def test_safe_send_handles_closed_connection():
+    c = AlpacaWSConnector(api_key="x", api_secret="x")
+
+    class DummyWS:
+        open = True
+        closed = False
+
+        async def send(self, payload):
+            raise RuntimeError("send after close")
+
+    c._ws = DummyWS()
+    res = await c._safe_send("x")
+    assert res is False
+
+
+@pytest.mark.asyncio
+async def test_safe_send_skips_when_not_connected():
+    c = AlpacaWSConnector(api_key="x", api_secret="x")
+    c._ws = None
+    res = await c._safe_send("x")
+    assert res is False

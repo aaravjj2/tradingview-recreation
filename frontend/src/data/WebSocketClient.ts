@@ -48,8 +48,8 @@ export class WebSocketClient {
                 }
             };
 
-            this.socket.onerror = (e) => {
-                console.error('WS Error', e);
+            this.socket.onerror = () => {
+                console.log('WS Error Event');
                 // On error, let onclose handle reconnect if valid
             };
         } catch (e) {
@@ -63,8 +63,14 @@ export class WebSocketClient {
     public disconnect() {
         this.shouldReconnect = false;
         if (this.socket) {
-            this.socket.onclose = null; // Prevent reconnect trigger during manual close
-            this.socket.close();
+            this.socket.onclose = null;
+            this.socket.onerror = null; // Prevent error log on manual close
+            try {
+                this.socket.close();
+            } catch {
+                // Ignore close errors on already-closed sockets
+            }
+            console.log('WebSocket connection to', this.url, 'closed');
             this.socket = null;
         }
     }

@@ -3,6 +3,7 @@
 ## 📋 Overview
 
 This is a **TradingView-style market workstation** with a React frontend and Python FastAPI backend. It combines:
+
 - **Real-time market data** (via Finnhub, Alpaca, or mock data)
 - **Advanced charting** with indicators and drawings
 - **Dashboard workspace** with analytics tiles
@@ -33,6 +34,7 @@ This is a **TradingView-style market workstation** with a React frontend and Pyt
 │  - Strategy Engine                                       │
 │  - Portfolio Manager                                     │
 │  - SQLite/PostgreSQL Database                           │
+│  - Options Analytics Engine                             │
 └─────────────────────────────────────────────────────────┘
                         ↕
 ┌─────────────────────────────────────────────────────────┐
@@ -90,6 +92,7 @@ npm install
 ### Step 3: Start the System
 
 **Terminal 1 - Backend:**
+
 ```bash
 cd phase1
 source venv/bin/activate
@@ -97,12 +100,14 @@ python -m uvicorn services.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Terminal 2 - Frontend:**
+
 ```bash
 cd frontend
 npm run dev
 ```
 
 **Terminal 3 - Data Ingestion (Optional, if not auto-started):**
+
 ```bash
 cd phase1
 source venv/bin/activate
@@ -111,9 +116,9 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 
 ### Step 4: Access the Application
 
-- **Frontend**: http://localhost:5100 (or port shown in terminal)
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
+- **Frontend**: <http://localhost:5100> (or port shown in terminal)
+- **Backend API**: <http://localhost:8000>
+- **API Docs**: <http://localhost:8000/docs>
 
 ---
 
@@ -165,6 +170,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 **Access**: Press `Ctrl/Cmd + 1` or click "Monitor" in left nav
 
 **Features**:
+
 - Candlestick charts with volume
 - 30+ indicators (RSI, MACD, Bollinger Bands, etc.)
 - Drawing tools (lines, channels, pitchforks, annotations)
@@ -172,6 +178,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 - Real-time streaming
 
 **Keyboard Shortcuts**:
+
 - `1/2/3/4/5` - Switch timeframe (1m/5m/15m/1H/1D)
 - `Ctrl/Cmd + Z` - Undo drawing
 - `Ctrl/Cmd + Y` - Redo drawing
@@ -181,6 +188,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 **Access**: Press `Ctrl/Cmd + 2` or click "Dashboard" in left nav
 
 **Features**:
+
 - Draggable/resizable tiles
 - Analytics widgets:
   - Regime Card (Trend/Chop detection)
@@ -198,6 +206,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 **Access**: Click "Strategies" in left nav
 
 **Features**:
+
 - Write strategies in Python
 - Backtest against historical data
 - Paper trading execution
@@ -208,12 +217,14 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 **Access**: Press `Ctrl/Cmd + 3` or click "Replay" in left nav
 
 **Features**:
+
 - Deterministic replay of recorded market data
 - Step through bars one-by-one
 - Test strategies on historical incidents
 - Virtual clock for deterministic timing
 
 **Controls**:
+
 - `Space` - Play/Pause
 - `→` - Step forward
 - `←` - Step backward
@@ -224,6 +235,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 **Access**: Click "Portfolio" in left nav
 
 **Features**:
+
 - Position tracking
 - P&L monitoring
 - Risk metrics
@@ -236,6 +248,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 ### Backend Configuration
 
 **Environment Variables** (`phase1/keys.env`):
+
 ```bash
 # Data Sources
 FINNHUB_API_KEY=your_key
@@ -257,10 +270,12 @@ API_PORT=8000
 ### Frontend Configuration
 
 **API Endpoint** (`frontend/src/data/APIClient.ts`):
+
 - Default: `http://localhost:8000`
 - Change in `APIClient.ts` if backend runs on different port
 
 **WebSocket URL** (`frontend/src/data/WebSocketClient.ts`):
+
 - Default: `ws://localhost:8000/ws`
 - Auto-connects on app load
 
@@ -271,37 +286,45 @@ API_PORT=8000
 ### REST API
 
 **Bars**:
+
 - `GET /api/v1/bars/{symbol}/{timeframe}` - Get historical bars
 - `GET /api/v1/bars/{symbol}/{timeframe}?from=2025-01-01&to=2025-01-02` - Date range
 
 **Clock**:
+
 - `GET /api/v1/clock` - Get market clock status
 
 **Strategies**:
+
 - `GET /api/v1/strategies` - List strategies
 - `POST /api/v1/strategies` - Create strategy
 - `POST /api/v1/strategies/{id}/backtest` - Run backtest
 
 **Portfolio**:
+
 - `GET /api/v1/portfolio` - Get portfolio state
 - `GET /api/v1/portfolio/positions` - Get positions
 
 **Drawings**:
+
 - `GET /api/v1/drawings/{symbol}` - Get saved drawings
 - `POST /api/v1/drawings/{symbol}` - Save drawings
 
 ### WebSocket
 
 **Bar Updates**:
+
 ```
 ws://localhost:8000/ws/bars/{symbol}/{timeframe}
 ```
 
 **Message Types**:
+
 - `BAR_FORMING` - Incomplete bar (updates in real-time)
 - `BAR_CONFIRMED` - Completed bar (final OHLCV)
 
 **Example Message**:
+
 ```json
 {
   "type": "BAR_CONFIRMED",
@@ -361,6 +384,7 @@ npm run test:3loop
 ### Mock Data Testing
 
 **Run deterministic replay**:
+
 ```bash
 cd phase1
 python scripts/run_mock.py \
@@ -383,7 +407,7 @@ python scripts/run_mock.py \
 
 ### Frontend Won't Connect to Backend
 
-1. **Check backend is running**: Visit http://localhost:8000/docs
+1. **Check backend is running**: Visit <http://localhost:8000/docs>
 2. **Check CORS**: Backend allows all origins by default
 3. **Check WebSocket**: Open browser console, look for connection errors
 4. **Check API URL**: Verify `APIClient.ts` has correct backend URL
@@ -456,6 +480,7 @@ Already covered in Quick Start section.
 ### Production
 
 **Backend**:
+
 ```bash
 cd phase1
 # Use production WSGI server
@@ -463,6 +488,7 @@ gunicorn services.api.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.
 ```
 
 **Frontend**:
+
 ```bash
 cd frontend
 npm run build
@@ -470,6 +496,7 @@ npm run build
 ```
 
 **Docker** (if available):
+
 ```bash
 cd phase1
 docker-compose up -d
@@ -481,7 +508,7 @@ docker-compose up -d
 
 - **Backend Docs**: `phase1/DOCUMENTATION.md`
 - **Architecture**: `docs/target_architecture.md`
-- **API Docs**: http://localhost:8000/docs (when backend is running)
+- **API Docs**: <http://localhost:8000/docs> (when backend is running)
 
 ---
 

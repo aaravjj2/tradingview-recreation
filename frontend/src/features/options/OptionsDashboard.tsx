@@ -11,7 +11,6 @@ import {
   StrategyMetrics,
   PositionGreeksPanel,
 } from './components';
-import { optionsApi } from './api';
 import type { StrategyAnalysis } from './types';
 
 interface OptionsDashboardProps {
@@ -29,11 +28,17 @@ export const OptionsDashboard: React.FC<OptionsDashboardProps> = ({
     chain,
     selectedExpiration,
     setSelectedExpiration,
+    strategyTemplates,
+    loadStrategyTemplates,
   } = useOptionsStore();
 
   const [inputSymbol, setInputSymbol] = useState(initialSymbol || '');
-  const [strategy, setStrategy] = useState<StrategyAnalysis | null>(null);
-  const [strategyLoading, setStrategyLoading] = useState(false);
+  const [strategy] = useState<StrategyAnalysis | null>(null);
+
+  // Load templates on mount
+  useEffect(() => {
+    loadStrategyTemplates();
+  }, [loadStrategyTemplates]);
 
   // Load data when initial symbol provided
   useEffect(() => {
@@ -41,60 +46,13 @@ export const OptionsDashboard: React.FC<OptionsDashboardProps> = ({
       setInputSymbol(initialSymbol);
       fetchAll(initialSymbol);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSymbol]);
 
   const handleSymbolSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputSymbol.trim()) {
       fetchAll(inputSymbol.trim());
-    }
-  };
-
-  const handleBuildIronCondor = async () => {
-    if (!chain || !chain.underlyingPrice) return;
-    
-    setStrategyLoading(true);
-    try {
-      const price = chain.underlyingPrice;
-      const result = await optionsApi.buildIronCondor({
-        underlyingPrice: price,
-        putLongStrike: Math.round(price * 0.90),
-        putLongPremium: 1.0,
-        putShortStrike: Math.round(price * 0.95),
-        putShortPremium: 2.0,
-        callShortStrike: Math.round(price * 1.05),
-        callShortPremium: 2.0,
-        callLongStrike: Math.round(price * 1.10),
-        callLongPremium: 1.0,
-        expirationDays: 30,
-      });
-      setStrategy(result);
-    } catch (error) {
-      console.error('Failed to build iron condor:', error);
-    } finally {
-      setStrategyLoading(false);
-    }
-  };
-
-  const handleBuildStraddle = async () => {
-    if (!chain || !chain.underlyingPrice) return;
-    
-    setStrategyLoading(true);
-    try {
-      const price = chain.underlyingPrice;
-      const result = await optionsApi.buildStraddle({
-        underlyingPrice: price,
-        strike: Math.round(price),
-        callPremium: price * 0.04,
-        putPremium: price * 0.04,
-        expirationDays: 30,
-        isLong: true,
-      });
-      setStrategy(result);
-    } catch (error) {
-      console.error('Failed to build straddle:', error);
-    } finally {
-      setStrategyLoading(false);
     }
   };
 
@@ -130,26 +88,28 @@ export const OptionsDashboard: React.FC<OptionsDashboardProps> = ({
 
         {/* Quick Actions */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">Quick Strategies</h3>
-          <div className="space-y-2">
-            <button
-              onClick={handleBuildIronCondor}
-              disabled={!chain || strategyLoading}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 
-                         px-3 py-2 rounded text-sm transition"
-            >
-              Build Iron Condor
-            </button>
-            <button
-              onClick={handleBuildStraddle}
-              disabled={!chain || strategyLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 
-                         px-3 py-2 rounded text-sm transition"
-            >
-              Build Long Straddle
-            </button>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Strategy Templates ({strategyTemplates.length})</h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+            {strategyTemplates.map((template) => (
+              <button
+                key={template.name}
+                onClick={() => {
+                  // For now, just log - can be extended to build each strategy
+                  console.log('Selected template:', template.name);
+                }}
+                disabled={!chain}
+                className="w-full bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 
+                           px-3 py-2 rounded text-sm transition text-left"
+              >
+                <div className="font-medium">{template.name}</div>
+                <div className="text-xs text-gray-400 truncate">{template.description}</div>
+              </button>
+            ))}
+            {strategyTemplates.length === 0 && (
+              <div className="text-xs text-gray-500 italic">Loading templates...</div>
+            )}
           </div>
-          
+
           {chain && (
             <div className="mt-4 pt-3 border-t border-gray-700">
               <div className="text-xs text-gray-400 space-y-1">
@@ -168,7 +128,7 @@ export const OptionsDashboard: React.FC<OptionsDashboardProps> = ({
           <h3 className="text-sm font-semibold text-gray-300 mb-3">
             {strategy.name} Analysis
           </h3>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <PayoffChart strategy={strategy} width={400} height={250} />
@@ -184,7 +144,7 @@ export const OptionsDashboard: React.FC<OptionsDashboardProps> = ({
                 </span>
               </div>
             </div>
-            
+
             <div className="space-y-4">
               <StrategyMetrics strategy={strategy} />
               <PositionGreeksPanel strategy={strategy} />

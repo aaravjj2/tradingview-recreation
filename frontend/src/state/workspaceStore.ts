@@ -46,7 +46,7 @@ export const TILE_DEFINITIONS: Record<string, TileDefinition> = {
         minSize: { w: 1, h: 1 },
         refreshRate: 1000,
     },
-    
+
     // Analytics Tiles
     'mini_chart': {
         id: 'mini_chart',
@@ -84,7 +84,7 @@ export const TILE_DEFINITIONS: Record<string, TileDefinition> = {
         defaultSize: { w: 2, h: 1 },
         minSize: { w: 1, h: 1 },
     },
-    
+
     // Market Tiles
     'news': {
         id: 'news',
@@ -114,7 +114,7 @@ export const TILE_DEFINITIONS: Record<string, TileDefinition> = {
         defaultSize: { w: 1, h: 1 },
         minSize: { w: 1, h: 1 },
     },
-    
+
     // Options Tiles
     'option_chain': {
         id: 'option_chain',
@@ -145,7 +145,7 @@ export const TILE_DEFINITIONS: Record<string, TileDefinition> = {
         defaultSize: { w: 2, h: 2 },
         minSize: { w: 2, h: 2 },
     },
-    
+
     // Risk Tiles  
     'whale_flow': {
         id: 'whale_flow',
@@ -180,7 +180,7 @@ export const TILE_DEFINITIONS: Record<string, TileDefinition> = {
         dataEndpoint: '/api/v1/options/gex',
         refreshRate: 60000,
     },
-    
+
     // AI Tiles
     'ai_copilot': {
         id: 'ai_copilot',
@@ -191,7 +191,7 @@ export const TILE_DEFINITIONS: Record<string, TileDefinition> = {
         defaultSize: { w: 2, h: 2 },
         minSize: { w: 1, h: 2 },
     },
-    
+
     // Journal Tiles
     'trade_journal': {
         id: 'trade_journal',
@@ -202,13 +202,22 @@ export const TILE_DEFINITIONS: Record<string, TileDefinition> = {
         defaultSize: { w: 2, h: 2 },
         minSize: { w: 1, h: 1 },
     },
+    'uncertainty_cone': {
+        id: 'uncertainty_cone',
+        name: 'Uncertainty Cone',
+        category: 'analytics',
+        description: 'Price forecast with confidence intervals',
+        icon: '🔮',
+        defaultSize: { w: 2, h: 2 },
+        minSize: { w: 2, h: 2 },
+    },
 };
 
 // Default tiles for dashboard
 export const DEFAULT_DASHBOARD_TILES = [
-    'watchlist', 
-    'positions', 
-    'mini_chart', 
+    'watchlist',
+    'positions',
+    'mini_chart',
     'news'
 ];
 
