@@ -453,38 +453,66 @@ class LLMRanker(CandidateSelector):
 
 def create_selector(config: AutopilotConfig, llm_provider=None) -> CandidateSelector:
     """
-    Factory function to create appropriate selector.
+    Factory function to create appropriate selector based on config.
     
-    If LLM is enabled but no provider specified, attempts to create
-    providers in order of preference: Groq → OpenRouter → Deterministic.
+    Supports:
+    - Deterministic (default)
+    - Groq (fast ranking)
+    - Gemini (detailed validation)
+    - Hybrid (Groq → Gemini)
     """
-    if config.llm_settings.enabled:
-        if llm_provider:
-            return LLMRanker(llm_provider)
-        
-        # Try providers in order of preference
-        providers_to_try = [
-            ("Groq", "..llm.providers.groq_provider", "create_groq_provider"),
-            ("OpenRouter", "..llm.providers.openrouter_provider", "create_openrouter_provider"),
-        ]
-        
-        for name, module_path, factory_func in providers_to_try:
-            try:
-                # Dynamic import
-                import importlib
-                module = importlib.import_module(module_path, package=__name__)
-                factory = getattr(module, factory_func)
-                provider = factory()
-                
-                if provider.is_available:
-                    logger.info(f"Using {name} provider for LLM ranking")
-                    return LLMRanker(provider)
-                else:
-                    logger.debug(f"{name} provider not available (missing API key)")
-            except Exception as e:
-                logger.debug(f"Failed to create {name} provider: {e}")
-        
-        logger.warning("No LLM providers available, falling back to deterministic ranker")
+    from .config import LLMMode
     
+    # Check if LLM enabled and mode specified
+    if not config.llm_settings.enabled or config.llm_settings.mode == LLMMode.OFF:
+        logger.info("LLM disabled, using deterministic ranker")
+        return DeterministicRanker()
+    
+    if config.llm_settings.mode == LLMMode.DETERMINISTIC:
+        logger.info("LLM mode set to deterministic")
+        return DeterministicRanker()
+    
+    # Hybrid mode: use both Groq and Gemini
+    if config.llm_settings.mode == LLMMode.HYBRID:
+        try:
+            from .hybrid_selector import create_hybrid_selector
+            selector = create_hybrid_selector()
+            logger.info("Using hybrid Groq+Gemini selector")
+            return selector
+        except Exception as e:
+            logger.warning(f"Failed to create hybrid selector: {e}, falling back to deterministic")
+            return DeterministicRanker()
+    
+    # Single LLM mode: Groq or Gemini
+    if llm_provider:
+        return LLMRanker(llm_provider)
+    
+    # Try to create the specified provider
+    if config.llm_settings.mode == LLMMode.GROQ:
+        try:
+            from ..llm.providers import create_groq_provider
+            provider = create_groq_provider(model=config.llm_settings.groq_model)
+            if provider.is_available:
+                logger.info("Using Groq provider for LLM ranking")
+                return LLMRanker(provider)
+            else:
+                logger.warning("Groq provider not available (missing API key)")
+        except Exception as e:
+            logger.warning(f"Failed to create Groq provider: {e}")
+    
+    elif config.llm_settings.mode == LLMMode.GEMINI:
+        try:
+            from ..llm.providers import create_gemini_provider
+            provider = create_gemini_provider(model=config.llm_settings.gemini_model)
+            if provider.is_available:
+                logger.info("Using Gemini provider for LLM ranking")
+                return LLMRanker(provider)
+            else:
+                logger.warning("Gemini provider not available (missing API key)")
+        except Exception as e:
+            logger.warning(f"Failed to create Gemini provider: {e}")
+    
+    # Fallback to deterministic
+    logger.warning("No LLM providers available, falling back to deterministic ranker")
     return DeterministicRanker()
 

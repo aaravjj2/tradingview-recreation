@@ -14,6 +14,9 @@ from enum import Enum
 from functools import lru_cache
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AutopilotMode(str, Enum):
@@ -99,11 +102,23 @@ class ForecastSettings:
     auto_downweight_on_miscalibration: bool = True
 
 
+class LLMMode(str, Enum):
+    """LLM selection mode."""
+    OFF = "off"
+    GROQ = "groq"
+    GEMINI = "gemini"
+    HYBRID = "hybrid"  # Groq for ranking, Gemini for validation
+    DETERMINISTIC = "deterministic"  # Fallback only
+
+
 @dataclass
 class LLMSettings:
     """Settings for optional LLM ranking."""
     enabled: bool = False
-    endpoint_url: Optional[str] = None
+    mode: LLMMode = LLMMode.DETERMINISTIC
+    groq_model: Optional[str] = None  # Defaults to groq/compound
+    gemini_model: Optional[str] = None  # Defaults to gemini-1.5-flash
+    endpoint_url: Optional[str] = None  # For custom HTTP endpoints
     timeout_seconds: float = 30.0
     fallback_to_deterministic: bool = True
 
@@ -317,3 +332,60 @@ def reset_config_cache() -> None:
     """Reset the config cache (for testing)."""
     global _cached_config
     _cached_config = None
+
+
+def load_llm_config_from_env() -> LLMSettings:
+    """
+    Load LLM configuration from environment variables.
+    
+    Environment variables:
+    - LLM_MODE: off|groq|gemini|hybrid|deterministic (default: deterministic)
+    - GROQ_MODEL: Model name for Groq (default: groq/compound)
+    - GEMINI_MODEL: Model name for Gemini (default: gemini-1.5-flash)
+    - GROQ_API_KEY: API key for Groq
+    - GEMINI_API_KEY: API key for Gemini
+    """
+    mode_str = os.environ.get("LLM_MODE", "deterministic").lower()
+    
+    # Map string to enum
+    mode_map = {
+        "off": LLMMode.OFF,
+        "groq": LLMMode.GROQ,
+        "gemini": LLMMode.GEMINI,
+        "hybrid": LLMMode.HYBRID,
+        "deterministic": LLMMode.DETERMINISTIC,
+    }
+    mode = mode_map.get(mode_str, LLMMode.DETERMINISTIC)
+    
+    # Check if keys are present
+    groq_key = os.environ.get("GROQ_API_KEY")
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    
+    # Auto-downgrade if keys missing
+    if mode == LLMMode.GROQ and not groq_key:
+        mode = LLMMode.DETERMINISTIC
+        logger.warning("GROQ mode selected but GROQ_API_KEY not set, falling back to DETERMINISTIC")
+    elif mode == LLMMode.GEMINI and not gemini_key:
+        mode = LLMMode.DETERMINISTIC
+        logger.warning("GEMINI mode selected but GEMINI_API_KEY not set, falling back to DETERMINISTIC")
+    elif mode == LLMMode.HYBRID and (not groq_key or not gemini_key):
+        if groq_key and not gemini_key:
+            mode = LLMMode.GROQ
+            logger.warning("HYBRID mode selected but GEMINI_API_KEY not set, using GROQ only")
+        elif gemini_key and not groq_key:
+            mode = LLMMode.GEMINI
+            logger.warning("HYBRID mode selected but GROQ_API_KEY not set, using GEMINI only")
+        else:
+            mode = LLMMode.DETERMINISTIC
+            logger.warning("HYBRID mode selected but no API keys set, falling back to DETERMINISTIC")
+    
+    enabled = mode != LLMMode.OFF and mode != LLMMode.DETERMINISTIC
+    
+    return LLMSettings(
+        enabled=enabled,
+        mode=mode,
+        groq_model=os.environ.get("GROQ_MODEL"),
+        gemini_model=os.environ.get("GEMINI_MODEL"),
+        timeout_seconds=float(os.environ.get("LLM_TIMEOUT", "30")),
+        fallback_to_deterministic=True,
+    )
