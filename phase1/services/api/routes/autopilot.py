@@ -5,9 +5,12 @@ Provides REST endpoints for the AI Options Autopilot paper trading system.
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Request
 from pydantic import BaseModel, Field
 import structlog
+
+# For websocket/ingestion status
+from ...api.websocket import get_manager
 
 from ...autopilot import (
     AutopilotConfig,
@@ -57,25 +60,17 @@ class KillSwitchRequest(BaseModel):
     close_all: bool = False
 
 
-# --- Global State ---
-# In production, this would be managed properly with dependency injection
-_autopilot_instance: Optional[AutopilotRunloop] = None
+from ...autopilot.service import get_autopilot_service
 
+# --- Global State ---
+# Replaced by AutopilotService singleton
 
 def get_autopilot() -> AutopilotRunloop:
-    """Get or create autopilot instance."""
-    global _autopilot_instance
-    
-    if _autopilot_instance is None:
-        config = AutopilotConfig()
-        llm_provider = OfflineStubProvider()
-        _autopilot_instance = AutopilotRunloop(
-            config=config,
-            llm_provider=llm_provider,
-        )
-        logger.info("autopilot_initialized")
-    
-    return _autopilot_instance
+    """Get the singleton autopilot instance."""
+    service = get_autopilot_service()
+    if not service.runloop:
+        service.initialize()
+    return service.runloop
 
 
 # --- Endpoints ---
@@ -200,19 +195,54 @@ async def trigger_run(
 
 
 @router.get("/autopilot/status")
-async def get_status() -> Dict[str, Any]:
+async def get_status(request: Request) -> Dict[str, Any]:
     """
     Get current autopilot status.
-    
+
     Returns:
     - Current state (idle/running/paused/error)
     - Mode (paper/paused)
     - Kill switch status
     - Last cycle result
     - Portfolio summary
+    - Websocket and ingestion flags for frontend UI
     """
     autopilot = get_autopilot()
-    return autopilot.get_status()
+
+    status = autopilot.get_status()
+
+    # Determine websocket and polling status based on ingestion connector and active WS clients
+    ws_connected = False
+    polling_fallback = False
+    ingestion = getattr(request.app.state, "ingestion", None)
+
+    try:
+        manager = get_manager()
+        # If any frontend client is connected to our WS manager, consider it connected
+        if manager.connection_count > 0:
+            ws_connected = True
+    except Exception:
+        pass
+
+    try:
+        if ingestion and getattr(ingestion, "connector", None):
+            connector = ingestion.connector
+            connector_name = getattr(connector, "name", "").lower()
+
+            # Polling connectors (REST-based) -> polling fallback
+            if connector_name in ("alpaca", "mock", "yfinance"):
+                polling_fallback = True
+
+            # If the connector is a WS-based connector and is running, mark websocket as connected
+            if connector_name in ("alpaca-ws", "finnhub") and getattr(connector, "is_running", False):
+                ws_connected = True
+    except Exception:
+        pass
+
+    status["websocket_connected"] = ws_connected
+    status["polling_fallback"] = polling_fallback
+
+    return status
 
 
 @router.get("/autopilot/proposals")
