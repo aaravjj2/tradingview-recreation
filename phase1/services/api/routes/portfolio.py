@@ -154,3 +154,35 @@ async def get_portfolio_metrics():
         "position_count": len(_portfolio_state["positions"]),
         "trade_count": len(_portfolio_state["trades"]),
     }
+
+
+@router.get("/unified")
+async def get_unified_portfolio():
+    """
+    Get unified portfolio view with positions, orders, and stats.
+    Used by the frontend EnhancedPortfolioView component.
+    """
+    positions = _portfolio_state.get("positions", [])
+    orders = _orders_state
+    
+    total_market_value = sum(p.get("market_value", 0) for p in positions)
+    unrealized_pnl = sum(p.get("unrealized_pnl", 0) for p in positions)
+    
+    return {
+        "positions": positions,
+        "orders": orders,
+        "stats": {
+            "total_equity": _portfolio_state.get("equity", 0),
+            "total_cash": _portfolio_state.get("cash", 0),
+            "buying_power": _portfolio_state.get("cash", 0) * 2,  # Simplified
+            "open_pnl": unrealized_pnl,
+            "day_pnl": 0.0,  # Would need to track this
+            "position_count": len(positions),
+            "order_count": len(orders),
+            "options_exposure": sum(
+                p.get("market_value", 0) 
+                for p in positions 
+                if p.get("asset_type") == "option"
+            ),
+        }
+    }
