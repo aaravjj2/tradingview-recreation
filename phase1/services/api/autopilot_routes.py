@@ -238,6 +238,46 @@ async def get_last_run_summary() -> Dict[str, Any]:
         "run_id": last_run.run_id,
         "status": last_run.status,
         "started_at": last_run.started_at.isoformat(),
+    }
+
+
+@router.get("/runs")
+async def list_autopilot_runs(status: Optional[str] = None) -> Dict[str, Any]:
+    """
+    List runs managed by the RunOrchestrator for autopilot operations.
+    Returns a JSON object with a `runs` array compatible with the frontend.
+    """
+    try:
+        from services.execution.orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        runs = orchestrator.list_runs(status=status)
+
+        def map_type(rt: str) -> str:
+            r = (rt or "").lower()
+            if "autopilot" in r or "autopilot_paper" in r:
+                return "autopilot"
+            if "monitor" in r:
+                return "monitoring"
+            if "manual" in r:
+                return "manual"
+            return r
+
+        normalized = []
+        for r in runs:
+            nr = dict(r)
+            nr["type"] = map_type(nr.get("run_type", ""))
+            nr["status"] = nr.get("status") or "pending"
+            nr["started_at"] = nr.get("started_at")
+            nr["completed_at"] = nr.get("stopped_at")
+            nr["duration_ms"] = None
+            nr["actions_taken"] = 0
+            nr["errors"] = nr.get("error_count", 0)
+            nr["summary"] = nr.get("last_error") or ""
+            normalized.append(nr)
+
+        return {"runs": normalized}
+    except Exception as e:
+        return {"runs": []}
         "completed_at": last_run.completed_at.isoformat() if last_run.completed_at else None,
         "counts": {
             "candidates": last_run.candidates_count,
