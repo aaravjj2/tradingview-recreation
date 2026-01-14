@@ -184,10 +184,8 @@ class AlpacaOptionsAdapter:
                                 provider="alpaca-indicative",
                             )
 
-                # No indicative data either; fallback to yfinance
-                from .adapter import OptionsDataAdapter
-                logger.info(f"alpaca_indicative_failed_fallback_to_yfinance symbol={symbol}")
-                return OptionsDataAdapter(self.risk_free_rate).get_chain(symbol, expiration)
+                # No indicative data either
+                return None
 
             # Best-effort parsing: expect 'contracts' and 'expirations' keys
             if isinstance(data, dict):
@@ -266,8 +264,7 @@ class AlpacaOptionsAdapter:
                     continue
 
             if not contracts:
-                from .adapter import OptionsDataAdapter
-                return OptionsDataAdapter(self.risk_free_rate).get_chain(symbol, expiration)
+                return None
 
             # underlying price may not be returned; set 0 and let callers fetch if needed
             return OptionChain(
@@ -278,17 +275,6 @@ class AlpacaOptionsAdapter:
                 timestamp=datetime.utcnow(),
                 provider="alpaca",
             )
-            # Fallback to yfinance if Alpaca fails
-            # Import here to avoid circular dependency
-            from .adapter import OptionsDataAdapter
-            logger.info(f"alpaca_options_fallback_to_yfinance symbol={symbol}")
-            return OptionsDataAdapter(self.risk_free_rate).get_chain(symbol, expiration)
-
-        except Exception as e:
+        except Exception:
             logger.exception("alpaca_options_error")
-            # Fallback to yfinance on error
-            from .adapter import OptionsDataAdapter
-            try:
-                return OptionsDataAdapter(self.risk_free_rate).get_chain(symbol, expiration)
-            except Exception:
-                return None
+            return None

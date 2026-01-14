@@ -201,7 +201,54 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 - Trade Journal
 - Mini charts
 
-### 3. Strategy Testing
+### 3. AI Options Autopilot (Paper Mode)
+
+**Access**: Click "Autopilot" in left nav
+
+The AI Options Autopilot is a paper-only automated options trading system that scans for opportunities, generates trade candidates, and executes paper trades within strict risk limits.
+
+**Key Features**:
+- **Paper Trading Only** - No real capital at risk
+- **Defined-Risk Strategies** - Put/Call Credit Spreads, Iron Condors, Debit Spreads
+- **Deterministic Guardrails** - Hard risk limits enforced automatically
+- **Optional LLM Ranking** - AI-powered candidate selection (uses Groq by default)
+
+**Dashboard Tabs**:
+- **Dashboard** - Status, portfolio summary, run controls
+- **Positions** - Current open positions with Greeks exposure
+- **Proposals** - Trade candidates and LLM rationale
+- **Activity** - Trade log and events
+- **Settings** - Configuration and risk limits
+
+**Default Settings** (for $1,000 paper equity):
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Max Risk/Trade | $50 | 5% of equity |
+| Max Total Risk | $300 | 30% of equity |
+| Max Daily Loss | $30 | 3% of equity |
+| Max Positions | 10 | Concentration limit |
+
+**Strategy Templates**:
+1. **Put Credit Spread** - Bullish/neutral outlook
+2. **Call Credit Spread** - Bearish/neutral outlook
+3. **Iron Condor** - Range-bound outlook
+4. **Call Debit Spread** - Bullish trend
+5. **Put Debit Spread** - Bearish trend
+
+**API Endpoints**:
+- `GET /api/v1/autopilot/status` - Current state and metrics
+- `POST /api/v1/autopilot/run` - Trigger autopilot cycle
+- `GET /api/v1/autopilot/positions` - View positions
+- `GET /api/v1/autopilot/proposals` - View candidates
+- `POST /api/v1/autopilot/kill_switch` - Emergency stop
+
+**n8n Integration**:
+Sample workflows are provided in `n8n/workflows/`:
+- `autopilot_scheduled_run.json` - Schedule runs at market hours
+- `daily_report_generator.json` - Generate daily P&L reports
+- `regime_change_handler.json` - Auto-adjust risk on volatility
+
+### 4. Strategy Testing
 
 **Access**: Click "Strategies" in left nav
 
@@ -212,7 +259,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 - Paper trading execution
 - Performance metrics
 
-### 4. Replay Mode
+### 5. Replay Mode
 
 **Access**: Press `Ctrl/Cmd + 3` or click "Replay" in left nav
 
@@ -230,7 +277,7 @@ python -m services.ingestion.main --mode live --symbols AAPL,MSFT,TSLA
 - `←` - Step backward
 - `Shift + →` - Step 10 bars forward
 
-### 5. Portfolio Management
+### 6. Portfolio Management
 
 **Access**: Click "Portfolio" in left nav
 

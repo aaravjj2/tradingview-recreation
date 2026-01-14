@@ -24,8 +24,14 @@ class TestEndToEndPipeline:
         """Test complete pipeline from mock CSV to bars."""
         csv_path = fixtures_dir / "aapl_test_ticks.csv"
         
+        # Generate fixture if missing (self-contained test)
         if not csv_path.exists():
-            pytest.skip("Test fixture not found")
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(csv_path, 'w') as f:
+                f.write("source,symbol,ts_ms,price,size\n")
+                base_ts = 1704067200000
+                for i in range(60):
+                    f.write(f"mock,AAPL,{base_ts + i * 1000},{185.50 + i * 0.01},{100 + (i % 5) * 50}\n")
         
         connector = MockConnector()
         normalizer = TickNormalizer()

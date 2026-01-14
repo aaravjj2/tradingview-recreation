@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from services.charting.advanced_indicators import AdvancedIndicators
 from services.models import Bar
@@ -16,10 +16,11 @@ from services.models import Bar
 def sample_bars():
     """Create sample bars with trending pattern"""
     bars = []
+    base_time = datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc)
     for i in range(200):
         # Create uptrend
         base_price = 100.0 + i * 0.5
-        ts_start = int(datetime(2024, 1, 1, 9, 30 + i, tzinfo=timezone.utc).timestamp() * 1000)
+        ts_start = int((base_time + timedelta(minutes=i)).timestamp() * 1000)
         bar = Bar(
             symbol="AAPL",
             timeframe="1min",

@@ -1,0 +1,97 @@
+/**
+ * Autopilot MCP-based E2E Tests
+ * Non-headless tests with mandatory snapshots
+ */
+
+import { test, expect } from '@playwright/test';
+
+test.describe('Autopilot MCP Testing', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:5100/');
+  });
+
+  test('should navigate to autopilot view', async ({ page }) => {
+    // Click on Autopilot nav item
+    await page.click('[data-testid="nav-item-autopilot"]');
+    
+    // Verify autopilot view is visible
+    await expect(page.locator('[data-testid="autopilot-view"]')).toBeVisible();
+    
+    // Take snapshot
+    await expect(page.locator('[data-testid="autopilot-view"]')).toHaveScreenshot('autopilot-view.png');
+  });
+
+  test('should display all 4 tabs', async ({ page }) => {
+    await page.click('[data-testid="nav-item-autopilot"]');
+    
+    // Verify all tabs exist
+    await expect(page.getByRole('button', { name: /Dashboard/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Positions/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Activity/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Settings/ })).toBeVisible();
+  });
+
+  test('should show paper mode banner', async ({ page }) => {
+    await page.click('[data-testid="nav-item-autopilot"]');
+    
+    // Verify paper mode banner
+    const banner = page.getByText('PAPER TRADING MODE - NO REAL MONEY AT RISK');
+    await expect(banner).toBeVisible();
+    
+    // Take snapshot of dashboard
+    await expect(page.locator('[data-testid="autopilot-dashboard"]')).toHaveScreenshot('autopilot-dashboard.png');
+  });
+
+  test('should display portfolio metrics', async ({ page }) => {
+    await page.click('[data-testid="nav-item-autopilot"]');
+    
+    // Verify key metrics are visible
+    await expect(page.getByText('Paper Equity')).toBeVisible();
+    await expect(page.getByText('$1,000.00')).toBeVisible();
+    await expect(page.getByText('Total P&L')).toBeVisible();
+    await expect(page.getByText('Open Positions')).toBeVisible();
+  });
+
+  test('should switch to positions tab', async ({ page }) => {
+    await page.click('[data-testid="nav-item-autopilot"]');
+    await page.getByRole('button', { name: /Positions/ }).click();
+    
+    // Verify positions view
+    await expect(page.getByRole('heading', { name: /Position Ledger/ })).toBeVisible();
+    
+    // Take snapshot
+    await expect(page.locator('main')).toHaveScreenshot('autopilot-positions.png');
+  });
+
+  test('should switch to activity tab', async ({ page }) => {
+    await page.click('[data-testid="nav-item-autopilot"]');
+    await page.getByRole('button', { name: /Activity/ }).click();
+    
+    // Verify activity view
+    await expect(page.getByRole('heading', { name: /Activity Log/ })).toBeVisible();
+    
+    // Take snapshot
+    await expect(page.locator('main')).toHaveScreenshot('autopilot-activity.png');
+  });
+
+  test('should switch to settings tab', async ({ page }) => {
+    await page.click('[data-testid="nav-item-autopilot"]');
+    await page.getByRole('button', { name: /Settings/ }).click();
+    
+    // Verify settings view
+    await expect(page.getByRole('heading', { name: /Autopilot Settings/ })).toBeVisible();
+    
+    // Take snapshot
+    await expect(page.locator('[data-testid="autopilot-settings"]')).toHaveScreenshot('autopilot-settings.png');
+  });
+
+  test('should toggle autopilot state', async ({ page }) => {
+    await page.click('[data-testid="nav-item-autopilot"]');
+    
+    // Click Resume button
+    await page.getByRole('button', { name: /Resume/ }).click();
+    
+    // Verify state changed (PAUSED badge should change to IDLE or RUNNING)
+    await expect(page.getByText('IDLE')).toBeVisible({ timeout: 5000 });
+  });
+});

@@ -6,8 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import datetime, timezone, timedelta
 from services.charting.patterns import PatternDetector
 from services.models import Bar
 
@@ -21,17 +20,21 @@ def detector():
 def uptrend_bars():
     """Create bars in uptrend"""
     bars = []
+    base_time = datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc)
     for i in range(100):
         base = 100.0 + i * 0.3
+        ts_start = int((base_time + timedelta(minutes=i)).timestamp() * 1000)
         bar = Bar(
             symbol="AAPL",
-            timestamp=datetime(2024, 1, 1, 9, 30 + i, tzinfo=timezone.utc),
-            open=Decimal(str(base)),
-            high=Decimal(str(base + 1.0)),
-            low=Decimal(str(base - 0.5)),
-            close=Decimal(str(base + 0.8)),
+            timeframe="1min",
+            bar_index=i,
+            ts_start_ms=ts_start,
+            ts_end_ms=ts_start + 60000,
+            open=float(base),
+            high=float(base + 1.0),
+            low=float(base - 0.5),
+            close=float(base + 0.8),
             volume=1000,
-            vwap=Decimal(str(base + 0.4)),
         )
         bars.append(bar)
     return bars
@@ -41,34 +44,41 @@ def uptrend_bars():
 def flag_pattern_bars():
     """Create bars that form a bull flag pattern"""
     bars = []
+    base_time = datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc)
     
     # Uptrend (pole)
     for i in range(20):
         base = 100.0 + i * 2.0
+        ts_start = int((base_time + timedelta(minutes=i)).timestamp() * 1000)
         bar = Bar(
             symbol="AAPL",
-            timestamp=datetime(2024, 1, 1, 9, 30 + i, tzinfo=timezone.utc),
-            open=Decimal(str(base)),
-            high=Decimal(str(base + 2.5)),
-            low=Decimal(str(base - 0.5)),
-            close=Decimal(str(base + 2.0)),
+            timeframe="1min",
+            bar_index=i,
+            ts_start_ms=ts_start,
+            ts_end_ms=ts_start + 60000,
+            open=float(base),
+            high=float(base + 2.5),
+            low=float(base - 0.5),
+            close=float(base + 2.0),
             volume=2000,
-            vwap=Decimal(str(base + 1.0)),
         )
         bars.append(bar)
     
     # Consolidation (flag)
     last_price = 100.0 + 19 * 2.0 + 2.0
     for i in range(15):
+        ts_start = int((base_time + timedelta(minutes=20 + i)).timestamp() * 1000)
         bar = Bar(
             symbol="AAPL",
-            timestamp=datetime(2024, 1, 1, 9, 30 + 20 + i, tzinfo=timezone.utc),
-            open=Decimal(str(last_price - 1.0)),
-            high=Decimal(str(last_price)),
-            low=Decimal(str(last_price - 2.0)),
-            close=Decimal(str(last_price - 1.5)),
+            timeframe="1min",
+            bar_index=20 + i,
+            ts_start_ms=ts_start,
+            ts_end_ms=ts_start + 60000,
+            open=float(last_price - 1.0),
+            high=float(last_price),
+            low=float(last_price - 2.0),
+            close=float(last_price - 1.5),
             volume=800,
-            vwap=Decimal(str(last_price - 1.0)),
         )
         bars.append(bar)
     

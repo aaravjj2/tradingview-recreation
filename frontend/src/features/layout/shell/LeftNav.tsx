@@ -1,8 +1,8 @@
-import { History, Layers, Bell, Settings, FileText, Wallet, ChevronLeft, ChevronRight, BarChart3, Grid3X3, Bot, AlertTriangle, TrendingUp } from 'lucide-react';
+import { History, Layers, Bell, Settings, FileText, Wallet, ChevronLeft, ChevronRight, BarChart3, Grid3X3, Bot, AlertTriangle, TrendingUp, Cpu } from 'lucide-react';
 import { cn } from '../../../ui/utils';
 import { useAppStore } from '../../../state/appStore';
 
-export type ViewId = 'monitor' | 'dashboard' | 'options' | 'replay' | 'strategies' | 'alerts' | 'portfolio' | 'reports' | 'automation' | 'incidents' | 'settings';
+export type ViewId = 'monitor' | 'dashboard' | 'options' | 'replay' | 'strategies' | 'alerts' | 'portfolio' | 'reports' | 'automation' | 'incidents' | 'autopilot' | 'settings';
 
 interface LeftNavProps {
     activeView: ViewId;
@@ -23,6 +23,7 @@ const navItems: { id: ViewId; icon: React.ReactNode; label: string; shortcut: st
     { id: 'monitor', icon: <BarChart3 size={20} />, label: 'Chart', shortcut: '⌘1' },
     { id: 'dashboard', icon: <Grid3X3 size={20} />, label: 'Dashboard', shortcut: '⌘2' },
     { id: 'options', icon: <TrendingUp size={20} />, label: 'Options', shortcut: '⌘3' },
+    { id: 'autopilot', icon: <Cpu size={20} />, label: 'Autopilot', shortcut: '⌘0' },
     { id: 'replay', icon: <History size={20} />, label: 'Replay', shortcut: '⌘4' },
     { id: 'strategies', icon: <Layers size={20} />, label: 'Strategies', shortcut: '⌘5' },
     { id: 'alerts', icon: <Bell size={20} />, label: 'Alerts', shortcut: '⌘6' },

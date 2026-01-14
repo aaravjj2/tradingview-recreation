@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     apca_api_secret_key: Optional[str] = Field(default=None, validation_alias="ALPACA3_SECRET")
     apca_endpoint: str = Field(default="https://paper-api.alpaca.markets", validation_alias="ALPACA3_ENDPOINT")
     # Enable using Alpaca for options chain data (experimental)
-    enable_alpaca_options: bool = Field(default=True)
+    enable_alpaca_options: bool = Field(default=False)
     
     # Tiingo (for yfinance fallback)
     tiingo_api_key: Optional[str] = Field(default=None)

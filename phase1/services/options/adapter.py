@@ -77,7 +77,7 @@ class OptionsDataAdapter:
                         return None
             except Exception as e:
                 logger.warning(f"Error getting underlying price for {symbol}: {e}")
-                raise ValueError(f"Strict mode: underlying price unavailable for {symbol}")
+                return None
             
             # Get available expirations
             try:
@@ -134,7 +134,6 @@ class OptionsDataAdapter:
                     continue
             
             if not contracts:
-                logger.warning(f"No contracts found for {symbol}")
                 return None
             
             return OptionChain(
@@ -148,97 +147,7 @@ class OptionsDataAdapter:
             
         except Exception as e:
             logger.error(f"Error fetching options chain for {symbol}: {e}")
-            raise ValueError(f"Strict mode: Options data unavailable for {symbol} (Mock disabled)")
-
-    def _generate_mock_chain(self, symbol: str, expiration: Optional[date] = None) -> OptionChain:
-        """Generate a realistic mock options chain for demonstration/fallback."""
-        import math
-        import random
-        
-        underlying_price = 150.0  # Default mock price
-        today = date.today()
-        
-        # Generate expirations if needed
-        if expiration:
-            expirations = [expiration]
-        else:
-            expirations = [
-                today + timedelta(days=d) 
-                for d in [7, 14, 30, 60]
-            ]
-        
-        contracts = []
-        
-        for exp in expirations:
-            dte = (exp - today).days
-            # Generate strikes around ATM
-            center_strike = int(underlying_price / 5) * 5
-            strikes = [center_strike + i * 5 for i in range(-10, 11)]
-            
-            for strike in strikes:
-                # Call logic
-                call_itm = underlying_price > strike
-                call_intrinsic = max(0, underlying_price - strike)
-                time_value = (underlying_price * 0.2 * math.sqrt(dte/365)) * math.exp(-0.5 * ((strike - underlying_price)/underlying_price)**2)
-                call_price = call_intrinsic + time_value
-                
-                # Put logic
-                put_itm = underlying_price < strike
-                put_intrinsic = max(0, strike - underlying_price)
-                put_price = put_intrinsic + time_value # Simplified put-call parity approximation
-                
-                # Create Call Contract
-                contracts.append(OptionContract(
-                    symbol=symbol,
-                    contract_symbol=f"{symbol}{exp.strftime('%y%m%d')}C{int(strike*1000):08d}",
-                    option_type=OptionType.CALL,
-                    strike=float(strike),
-                    expiration=exp,
-                    bid=round(call_price * 0.98, 2),
-                    ask=round(call_price * 1.02, 2),
-                    last=round(call_price, 2),
-                    mark=round(call_price, 2),
-                    volume=random.randint(100, 5000),
-                    open_interest=random.randint(1000, 10000),
-                    implied_volatility=0.25 + random.uniform(-0.02, 0.02),
-                    in_the_money=call_itm,
-                    days_to_expiration=dte,
-                    greeks=Greeks(
-                        delta=0.5 + (underlying_price - strike) / (underlying_price * 0.2), # Crude approx
-                        gamma=0.02, theta=-0.05, vega=0.1, rho=0.01
-                    )
-                ))
-                
-                # Create Put Contract
-                contracts.append(OptionContract(
-                    symbol=symbol,
-                    contract_symbol=f"{symbol}{exp.strftime('%y%m%d')}P{int(strike*1000):08d}",
-                    option_type=OptionType.PUT,
-                    strike=float(strike),
-                    expiration=exp,
-                    bid=round(put_price * 0.98, 2),
-                    ask=round(put_price * 1.02, 2),
-                    last=round(put_price, 2),
-                    mark=round(put_price, 2),
-                    volume=random.randint(100, 5000),
-                    open_interest=random.randint(1000, 10000),
-                    implied_volatility=0.25 + random.uniform(-0.02, 0.02),
-                    in_the_money=put_itm,
-                    days_to_expiration=dte,
-                    greeks=Greeks(
-                        delta=-0.5 + (underlying_price - strike) / (underlying_price * 0.2),
-                        gamma=0.02, theta=-0.05, vega=0.1, rho=0.01
-                    )
-                ))
-        
-        return OptionChain(
-            symbol=symbol,
-            underlying_price=underlying_price,
-            expirations=expirations,
-            contracts=contracts,
-            timestamp=datetime.utcnow(),
-            provider="mock_fallback",
-        )
+            return None
     
     def _row_to_contract(
         self,

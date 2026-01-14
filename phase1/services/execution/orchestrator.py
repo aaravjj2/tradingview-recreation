@@ -301,4 +301,68 @@ def get_orchestrator() -> RunOrchestrator:
     global _orchestrator
     if _orchestrator is None:
         _orchestrator = RunOrchestrator()
+        # Register built-in handlers
+        _register_builtin_handlers(_orchestrator)
     return _orchestrator
+
+
+async def _autopilot_paper_handler(
+    run_id: str,
+    strategy_id: str,
+    config: dict,
+    orchestrator: RunOrchestrator,
+) -> None:
+    """
+    Handler for autopilot_paper run type.
+    
+    Runs the autopilot runloop in paper mode, coordinating:
+    - Universe scanning
+    - Candidate generation
+    - Selection (deterministic or LLM-based)
+    - Validation
+    - Paper execution
+    - Position monitoring
+    """
+    from ..autopilot.config import AutopilotConfig, AutopilotMode
+    from ..autopilot.runloop import AutopilotRunloop
+    
+    logger.info(f"[autopilot_paper] Starting run {run_id} for strategy {strategy_id}")
+    
+    try:
+        # Create autopilot config from provided config dict
+        autopilot_config = AutopilotConfig(
+            paper_equity=config.get("paper_equity", 1000.0),
+            mode=AutopilotMode(config.get("mode", "paper")),
+            auto_execute=config.get("auto_execute", True),
+            llm_enabled=config.get("llm_enabled", False),
+            forecast_influence=config.get("forecast_influence", 0.3),
+        )
+        
+        # Initialize runloop
+        runloop = AutopilotRunloop(
+            config=autopilot_config,
+            data_provider=None,  # Uses mock data
+            llm_provider=None,   # Uses deterministic ranker
+        )
+        
+        # Run a single cycle
+        result = runloop.run_cycle()
+        
+        # Report heartbeat
+        orchestrator.heartbeat(run_id)
+        
+        # Log result
+        if result.success:
+            logger.info(f"[autopilot_paper] Cycle completed: {result.orders_filled} trades executed")
+        else:
+            logger.warning(f"[autopilot_paper] Cycle failed: {result.error_message}")
+        
+    except Exception as e:
+        logger.error(f"[autopilot_paper] Error in run {run_id}: {e}")
+        raise
+
+
+def _register_builtin_handlers(orchestrator: RunOrchestrator) -> None:
+    """Register built-in run type handlers."""
+    orchestrator.register_handler("autopilot_paper", _autopilot_paper_handler)
+    logger.info("Registered autopilot_paper handler")

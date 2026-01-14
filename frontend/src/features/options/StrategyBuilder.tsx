@@ -175,8 +175,7 @@ export const StrategyBuilder = ({ symbol, underlyingPrice }: StrategyBuilderProp
           data: payoffs,
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: (context: any) => {
-            const value = context.parsed?.y;
-            if (value === undefined || value === null) return 'rgba(59, 130, 246, 0.1)';
+            const value = context.parsed.y;
             return value >= 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
           },
           fill: true,

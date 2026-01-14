@@ -132,8 +132,24 @@ def sample_bar() -> Bar:
 
 @pytest.fixture
 def fixtures_dir() -> Path:
-    """Get path to fixtures directory."""
-    return Path(__file__).parent.parent / "fixtures"
+    """Get path to fixtures directory.
+    
+    Checks multiple locations for fixtures:
+    1. phase1/fixtures/ (primary)
+    2. phase1/tests/fixtures/ (fallback)
+    """
+    # Try primary location first
+    primary = Path(__file__).parent.parent / "fixtures"
+    if primary.exists() and (primary / "aapl_test_ticks.csv").exists():
+        return primary
+    
+    # Try tests/fixtures fallback
+    fallback = Path(__file__).parent / "fixtures"
+    if fallback.exists() and (fallback / "aapl_test_ticks.csv").exists():
+        return fallback
+    
+    # Return primary and let individual tests generate fixtures if needed
+    return primary
 
 
 def create_test_tick(

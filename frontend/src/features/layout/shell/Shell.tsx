@@ -18,6 +18,7 @@ import { DashboardView } from '../views/DashboardView';
 import { AutomationView } from '../views/AutomationView';
 import { IncidentsView } from '../views/IncidentsView';
 import { OptionsView } from '../views/OptionsView';
+import { AutopilotView } from '../views/AutopilotView';
 import { ToastProvider } from '../../../ui/Toast';
 import { useAppStore } from '../../../state/appStore';
 import { useWorkspaceStore } from '../../../state/workspaceStore';
@@ -151,6 +152,8 @@ export function Shell() {
                 return <DashboardView />;
             case 'options':
                 return <OptionsView />;
+            case 'autopilot':
+                return <AutopilotView />;
             case 'replay':
                 return <ReplayView />;
             case 'strategies':

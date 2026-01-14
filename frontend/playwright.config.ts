@@ -15,13 +15,16 @@ export default defineConfig({
     use: {
         baseURL,
         trace: 'on-first-retry',
-        screenshot: 'only-on-failure',
+        screenshot: 'on',  // Always take screenshots
+        video: 'on',  // Record video for all tests
         chromiumSandbox: false,
+        headless: false,  // NON-HEADLESS mode for visual verification
         launchOptions: {
             args: [
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
             ],
+            slowMo: 100,  // Slow down for visual inspection
         },
     },
     webServer: {
