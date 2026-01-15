@@ -91,6 +91,30 @@ from .runloop import (
     CycleResult,
     RunloopState,
 )
+from .unified_cycle import (
+    UnifiedAutopilot,
+    CyclePhase,
+    CycleMetrics,
+    DecisionTrace,
+)
+from .trade_stream import (
+    TradeUpdateType,
+    TradeUpdate,
+    AlpacaTradeStream,
+    TradeUpdateHandler,
+    get_trade_handler,
+)
+from .news_sentiment import (
+    NewsCategory,
+    SentimentBucket,
+    RecencyBucket,
+    NewsArticle,
+    SentimentScore,
+    FinnhubNewsProvider,
+    SentimentEngine,
+    get_news_provider,
+    get_sentiment_engine,
+)
 
 __all__ = [
     # Config
@@ -158,4 +182,25 @@ __all__ = [
     'AutopilotRunloop',
     'CycleResult',
     'RunloopState',
+    # Unified Cycle
+    'UnifiedAutopilot',
+    'CyclePhase',
+    'CycleMetrics',
+    'DecisionTrace',
+    # Trade Stream
+    'TradeUpdateType',
+    'TradeUpdate',
+    'AlpacaTradeStream',
+    'TradeUpdateHandler',
+    'get_trade_handler',
+    # News Sentiment
+    'NewsCategory',
+    'SentimentBucket',
+    'RecencyBucket',
+    'NewsArticle',
+    'SentimentScore',
+    'FinnhubNewsProvider',
+    'SentimentEngine',
+    'get_news_provider',
+    'get_sentiment_engine',
 ]

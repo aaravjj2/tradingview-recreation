@@ -63,6 +63,135 @@ function apiForecastConfigToLocal(api?: ForecastConfig): LocalForecastConfig {
     };
 }
 
+// Activity Log Section Component
+function ActivityLogSection({ armed }: { armed: boolean }) {
+    const [logs, setLogs] = useState<Array<{
+        id: string;
+        timestamp: string;
+        type: string;
+        message: string;
+        symbol?: string;
+        details?: Record<string, unknown>;
+    }>>([]);
+    const [loading, setLoading] = useState(false);
+
+    const fetchLogs = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetch('http://localhost:8000/api/v1/autopilot/status');
+            if (!res.ok) throw new Error('Failed to fetch');
+            const data = await res.json();
+
+            // Convert last cycle data to log entries
+            const newLogs: typeof logs = [];
+            const lastCycle = data.last_cycle;
+
+            if (lastCycle) {
+                newLogs.push({
+                    id: `${lastCycle.cycle_id}-start`,
+                    timestamp: lastCycle.started_at,
+                    type: 'CYCLE',
+                    message: `Cycle ${lastCycle.cycle_id} started`,
+                });
+
+                if (lastCycle.candidates?.generated > 0) {
+                    newLogs.push({
+                        id: `${lastCycle.cycle_id}-candidates`,
+                        timestamp: lastCycle.started_at,
+                        type: 'CANDIDATES',
+                        message: `Generated ${lastCycle.candidates.generated} candidates`,
+                        details: lastCycle.candidates.by_template,
+                    });
+                }
+
+                if (lastCycle.selection?.selected > 0) {
+                    newLogs.push({
+                        id: `${lastCycle.cycle_id}-selected`,
+                        timestamp: lastCycle.started_at,
+                        type: 'SELECTION',
+                        message: `Selected ${lastCycle.selection.selected} trades, rejected ${lastCycle.selection.rejected}`,
+                    });
+                }
+
+                if (lastCycle.execution?.filled > 0) {
+                    newLogs.push({
+                        id: `${lastCycle.cycle_id}-filled`,
+                        timestamp: lastCycle.completed_at,
+                        type: 'FILL',
+                        message: `Filled ${lastCycle.execution.filled} orders`,
+                    });
+                }
+
+                newLogs.push({
+                    id: `${lastCycle.cycle_id}-complete`,
+                    timestamp: lastCycle.completed_at,
+                    type: lastCycle.success ? 'SUCCESS' : 'ERROR',
+                    message: lastCycle.success
+                        ? `Cycle complete in ${lastCycle.duration_ms.toFixed(0)}ms`
+                        : `Cycle failed: ${lastCycle.error}`,
+                });
+            }
+
+            setLogs(newLogs.reverse());
+        } catch (e) {
+            console.error('Failed to fetch activity:', e);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchLogs();
+        const interval = setInterval(fetchLogs, 5000);
+        return () => clearInterval(interval);
+    }, [fetchLogs, armed]);
+
+    const typeColors: Record<string, string> = {
+        'CYCLE': 'text-blue-400',
+        'CANDIDATES': 'text-purple-400',
+        'SELECTION': 'text-yellow-400',
+        'FILL': 'text-green-400',
+        'SUCCESS': 'text-green-500',
+        'ERROR': 'text-red-500',
+    };
+
+    const formatTime = (iso: string) => new Date(iso).toLocaleTimeString();
+
+    if (logs.length === 0) {
+        return (
+            <div className="text-center py-6 text-text-secondary">
+                {loading ? (
+                    <RefreshCw className="mx-auto animate-spin" size={20} />
+                ) : (
+                    <>
+                        <Activity size={24} className="mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No activity yet. Run a cycle to see logs.</p>
+                    </>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-1 max-h-64 overflow-y-auto font-mono text-xs">
+            {logs.map(log => (
+                <div key={log.id} className="flex items-start gap-2 p-2 bg-element-bg/50 rounded">
+                    <span className="text-text-muted shrink-0">{formatTime(log.timestamp)}</span>
+                    <span className={`shrink-0 w-16 uppercase font-semibold ${typeColors[log.type] || 'text-text-secondary'}`}>
+                        {log.type}
+                    </span>
+                    <span className="text-text flex-1">{log.message}</span>
+                    {log.details && (
+                        <span className="text-text-muted shrink-0">
+                            {JSON.stringify(log.details)}
+                        </span>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 
 const isMarketOpen = () => {
     // Basic EST 9:30-16:00 check
@@ -623,6 +752,20 @@ export function AutomationView() {
                             ))}
                         </div>
                     )}
+                </Panel>
+
+                {/* Activity Log */}
+                <Panel className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Activity size={18} className="text-brand" />
+                            Activity Log
+                        </h3>
+                        <Button variant="ghost" size="sm" onClick={fetchStatus} disabled={loading}>
+                            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                        </Button>
+                    </div>
+                    <ActivityLogSection armed={status.armed} />
                 </Panel>
 
                 {/* Strategy Selection Note */}

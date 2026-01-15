@@ -72,8 +72,8 @@ class RiskLimits:
 @dataclass
 class StrategyConstraints:
     """Constraints for strategy templates."""
-    min_dte: int = 14
-    max_dte: int = 45
+    min_dte: int = 1
+    max_dte: int = 60
     min_short_delta: float = 0.15
     max_short_delta: float = 0.35
     min_spread_width: float = 1.0
@@ -81,7 +81,7 @@ class StrategyConstraints:
     max_slippage_pct: float = 0.05
     # Exit rules
     take_profit_pct: float = 0.50  # 50% of max profit
-    time_stop_dte: int = 7  # Close when DTE <= 7
+    time_stop_dte: int = 1  # Close when DTE <= 1
     loss_stop_multiplier: float = 2.0  # 2x credit received
 
 
@@ -129,6 +129,7 @@ class AutopilotConfig:
     # Mode
     mode: AutopilotMode = AutopilotMode.PAPER
     auto_execute: bool = True  # Auto-execute paper trades
+    enable_alpaca: bool = True  # Enable mirroring trades to Alpaca
     
     # Budget (paper equity)
     paper_equity: float = 1000.0

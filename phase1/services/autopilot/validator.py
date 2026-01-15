@@ -319,11 +319,11 @@ class TradeValidator:
         current_cluster_risk = cluster_exposure.get(cluster, 0)
         
         # Max 60% of total risk in one cluster
-        max_cluster_risk = limits.max_total_risk * limits.max_cluster_concentration
+        max_cluster_risk = limits.max_total_risk * limits.max_cluster_risk_pct
         if current_cluster_risk + candidate.max_loss > max_cluster_risk:
             result.rejection_codes.append(RejectionCode.CLUSTER_CONCENTRATION)
             result.rejection_details.append(
-                f"Cluster {cluster} would exceed {limits.max_cluster_concentration:.0%} concentration"
+                f"Cluster {cluster} would exceed {limits.max_cluster_risk_pct:.0%} concentration"
             )
     
     def _check_earnings_blackout(
@@ -334,11 +334,8 @@ class TradeValidator:
         """Check earnings blackout rules."""
         policy = self.config.earnings_policy
         
-        if policy.mode == "ignore":
-            return
-        
         # Check if symbol is in earnings blackout
-        is_blackout = self.universe.is_earnings_blackout(
+        is_blackout = self.universe.is_in_earnings_blackout(
             candidate.symbol,
             policy.blackout_days_before,
         )
@@ -346,15 +343,10 @@ class TradeValidator:
         if is_blackout:
             # For credit strategies, enforce blackout
             if candidate.template.value in ["put_credit_spread", "call_credit_spread", "iron_condor"]:
-                if policy.mode == "conservative":
-                    result.rejection_codes.append(RejectionCode.EARNINGS_BLACKOUT)
-                    result.rejection_details.append(
-                        f"Earnings blackout for {candidate.symbol} ({policy.blackout_days_before} days)"
-                    )
-                elif policy.mode == "moderate":
-                    result.warnings.append(
-                        f"Warning: {candidate.symbol} near earnings"
-                    )
+                result.rejection_codes.append(RejectionCode.EARNINGS_BLACKOUT)
+                result.rejection_details.append(
+                    f"Earnings blackout for {candidate.symbol} ({policy.blackout_days_before} days)"
+                )
     
     def _check_liquidity(
         self,
@@ -362,18 +354,20 @@ class TradeValidator:
         result: ValidationResult,
     ) -> None:
         """Check liquidity requirements."""
-        constraints = self.config.strategy_constraints
+        # Use default thresholds if not configured
+        min_liquidity_score = getattr(self.config.strategy_constraints, 'min_liquidity_score', 0.3)
+        max_spread_percent = getattr(self.config.strategy_constraints, 'max_spread_percent', 0.10)
         
-        if candidate.liquidity_score < constraints.min_liquidity_score:
+        if candidate.liquidity_score < min_liquidity_score:
             result.rejection_codes.append(RejectionCode.LIQUIDITY_TOO_LOW)
             result.rejection_details.append(
-                f"Liquidity score {candidate.liquidity_score:.0f} < {constraints.min_liquidity_score:.0f}"
+                f"Liquidity score {candidate.liquidity_score:.2f} < {min_liquidity_score:.2f}"
             )
         
-        if candidate.spread_percent > constraints.max_spread_percent:
+        if candidate.spread_percent > max_spread_percent:
             result.rejection_codes.append(RejectionCode.SPREAD_TOO_WIDE)
             result.rejection_details.append(
-                f"Spread {candidate.spread_percent:.1%} > {constraints.max_spread_percent:.1%}"
+                f"Spread {candidate.spread_percent:.1%} > {max_spread_percent:.1%}"
             )
     
     def _check_template_constraints(
@@ -384,8 +378,8 @@ class TradeValidator:
         """Check template-specific constraints."""
         constraints = self.config.strategy_constraints
         
-        # Check if template is allowed
-        if candidate.template not in constraints.allowed_templates:
+        # Check if template is allowed (use config.allowed_strategies)
+        if candidate.template not in self.config.allowed_strategies:
             result.rejection_codes.append(RejectionCode.TEMPLATE_NOT_ALLOWED)
             result.rejection_details.append(
                 f"Template {candidate.template.value} not in allowed list"
@@ -398,11 +392,13 @@ class TradeValidator:
                 f"DTE {candidate.dte} not in [{constraints.min_dte}, {constraints.max_dte}]"
             )
         
-        # Check IV range
-        if not (constraints.min_iv_rank <= candidate.iv_rank <= constraints.max_iv_rank):
+        # Check IV range (use defaults if not set)
+        min_iv = getattr(constraints, 'min_iv_rank', 0)
+        max_iv = getattr(constraints, 'max_iv_rank', 100)
+        if not (min_iv <= candidate.iv_rank <= max_iv):
             result.rejection_codes.append(RejectionCode.IV_OUT_OF_RANGE)
             result.rejection_details.append(
-                f"IV rank {candidate.iv_rank:.0f} not in [{constraints.min_iv_rank}, {constraints.max_iv_rank}]"
+                f"IV rank {candidate.iv_rank:.0f} not in [{min_iv}, {max_iv}]"
             )
     
     def _check_leg_validity(

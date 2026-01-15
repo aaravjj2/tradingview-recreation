@@ -17,7 +17,7 @@ interface TileProps {
 function generateMockCandles(count: number = 100) {
     const candles = [];
     let basePrice = 150 + Math.random() * 50;
-    let baseTime = Math.floor(Date.now() / 1000) - count * 60;
+    const baseTime = Math.floor(Date.now() / 1000) - count * 60;
 
     for (let i = 0; i < count; i++) {
         const volatility = 0.02;

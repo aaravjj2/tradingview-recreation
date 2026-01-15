@@ -104,28 +104,28 @@ class PositionMonitor:
         "put_credit_spread": {
             "profit_target_pct": 50,  # Take profit at 50% of max
             "loss_limit_pct": 200,    # 2x credit received
-            "time_stop_dte": 7,       # Close at 7 DTE
+            "time_stop_dte": 1,       # Close at 1 DTE
         },
         "call_credit_spread": {
             "profit_target_pct": 50,
             "loss_limit_pct": 200,
-            "time_stop_dte": 7,
+            "time_stop_dte": 1,
         },
         "iron_condor": {
             "profit_target_pct": 50,
             "loss_limit_pct": 200,
-            "time_stop_dte": 7,
+            "time_stop_dte": 1,
         },
         # Debit strategies
         "call_debit_spread": {
             "profit_target_pct": 50,  # Take profit at 50% gain
             "loss_limit_pct": 50,     # Cut loss at 50% of debit
-            "time_stop_dte": 14,      # Close at 14 DTE if not working
+            "time_stop_dte": 1,      # Close at 1 DTE
         },
         "put_debit_spread": {
             "profit_target_pct": 50,
             "loss_limit_pct": 50,
-            "time_stop_dte": 14,
+            "time_stop_dte": 1,
         },
     }
     
@@ -297,9 +297,6 @@ class PositionMonitor:
         """Check if position should be closed before earnings."""
         policy = self.config.earnings_policy
         
-        if policy.mode == "ignore":
-            return None
-        
         if not policy.auto_close_before_earnings:
             return None
         
@@ -353,13 +350,13 @@ class PositionMonitor:
         # Check concentration
         for cluster, risk in state.cluster_exposure.items():
             cluster_pct = risk / limits.max_total_risk if limits.max_total_risk > 0 else 0
-            if cluster_pct > limits.max_cluster_concentration * 0.9:
+            if cluster_pct > limits.max_cluster_risk_pct * 0.9:
                 alerts.append(self._create_alert(
                     alert_type="concentration",
                     severity="warning",
                     message=f"Cluster '{cluster}' at {cluster_pct:.0%} concentration",
                     current_value=risk,
-                    threshold=limits.max_total_risk * limits.max_cluster_concentration,
+                    threshold=limits.max_total_risk * limits.max_cluster_risk_pct,
                 ))
         
         # Check delta exposure

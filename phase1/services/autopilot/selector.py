@@ -220,7 +220,7 @@ class DeterministicRanker(CandidateSelector):
     ) -> None:
         """Apply forecast data to adjust candidate scores."""
         forecasts = market_context.get("forecasts", {})
-        influence_level = config.forecast_settings.influence_level
+        influence_level = config.forecast_settings.influence_weight
         
         if influence_level == 0 or not forecasts:
             return

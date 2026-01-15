@@ -1,0 +1,927 @@
+{
+  "timestamp": "2026-01-15T02:38:18.460982",
+  "positions": [
+    {
+      "position_id": "P000003",
+      "symbol": "TLT",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 88.5,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.29,
+          "delta": -0.5895596143134522,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 86.5,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.01,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000003",
+      "entry_price": -0.28946530747215965,
+      "entry_time": "2026-01-14 23:55:21.121858",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.28946530747215965,
+      "greeks": {
+        "delta": -0.5895596143134522,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 27.999999999999996,
+      "max_profit": 172.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000004",
+      "symbol": "XLF",
+      "template": "call_debit_spread",
+      "legs": [
+        {
+          "option_type": "call",
+          "strike": 54.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.43,
+          "delta": 0.5950325662629916,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "call",
+          "strike": 56.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.0,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000004",
+      "entry_price": -0.4393626274398252,
+      "entry_time": "2026-01-14 23:55:21.280912",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.4393626274398252,
+      "greeks": {
+        "delta": 0.5950325662629916,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 43.0,
+      "max_profit": 157.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000006",
+      "symbol": "XLE",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 48.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.45,
+          "delta": -0.4807806198594605,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 46.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.02,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000006",
+      "entry_price": -0.44303297658724267,
+      "entry_time": "2026-01-14 23:56:47.444060",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.44303297658724267,
+      "greeks": {
+        "delta": -0.4807806198594605,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 43.0,
+      "max_profit": 157.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000004",
+      "symbol": "SPY",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 687.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 1.45,
+          "delta": -0.4145030450972446,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 685.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 1.02,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000004",
+      "entry_price": -0.4393626274398251,
+      "entry_time": "2026-01-14 21:08:10.406987",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.4393626274398251,
+      "greeks": {
+        "delta": -0.4145030450972446,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 42.99999999999999,
+      "max_profit": 157.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000008",
+      "symbol": "QQQ",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 616.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 1.98,
+          "delta": -0.4554378397324729,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 614.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 1.49,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000008",
+      "entry_price": -0.5052472350401097,
+      "entry_time": "2026-01-14 21:08:11.157697",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.5052472350401097,
+      "greeks": {
+        "delta": -0.4554378397324729,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 49.0,
+      "max_profit": 151.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000009",
+      "symbol": "NVDA",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 181.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 1.13,
+          "delta": -0.4134643636354542,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 179.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.64,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000009",
+      "entry_price": -0.5056902997760234,
+      "entry_time": "2026-01-14 21:08:11.343925",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.5056902997760234,
+      "greeks": {
+        "delta": -0.4134643636354542,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 48.999999999999986,
+      "max_profit": 151.00000000000003,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000001",
+      "symbol": "TLT",
+      "template": "call_debit_spread",
+      "legs": [
+        {
+          "option_type": "call",
+          "strike": 88.5,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.2,
+          "delta": 0.41044038568654784,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "call",
+          "strike": 90.5,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.01,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000001",
+      "entry_price": -0.19389694168724306,
+      "entry_time": "2026-01-15 00:04:19.097698",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.19389694168724306,
+      "greeks": {
+        "delta": 0.41044038568654784,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 19.0,
+      "max_profit": 181.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000002",
+      "symbol": "XLF",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 54.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.26,
+          "delta": -0.4049674337370084,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 52.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.01,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000002",
+      "entry_price": -0.25613837476455903,
+      "entry_time": "2026-01-15 00:04:19.262890",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.25613837476455903,
+      "greeks": {
+        "delta": -0.4049674337370084,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 25.0,
+      "max_profit": 175.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000003",
+      "symbol": "TLT",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 88.5,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.29,
+          "delta": -0.5895596143134522,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 86.5,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.01,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000003",
+      "entry_price": -0.28946530747215965,
+      "entry_time": "2026-01-15 00:04:19.437687",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.28946530747215965,
+      "greeks": {
+        "delta": -0.5895596143134522,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 27.999999999999996,
+      "max_profit": 172.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000004",
+      "symbol": "XLF",
+      "template": "call_debit_spread",
+      "legs": [
+        {
+          "option_type": "call",
+          "strike": 54.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.43,
+          "delta": 0.5950325662629916,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "call",
+          "strike": 56.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.0,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000004",
+      "entry_price": -0.4393626274398252,
+      "entry_time": "2026-01-15 00:04:19.603160",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.4393626274398252,
+      "greeks": {
+        "delta": 0.5950325662629916,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 43.0,
+      "max_profit": 157.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000005",
+      "symbol": "XLE",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 48.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.45,
+          "delta": -0.4807806198594605,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 46.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.02,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000005",
+      "entry_price": -0.4388613812089107,
+      "entry_time": "2026-01-15 00:04:19.778081",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.4388613812089107,
+      "greeks": {
+        "delta": -0.4807806198594605,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 43.0,
+      "max_profit": 157.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    },
+    {
+      "position_id": "P000006",
+      "symbol": "XLE",
+      "template": "put_debit_spread",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 48.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.45,
+          "delta": -0.4807806198594605,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 46.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.02,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "entry_order_id": "PO00000006",
+      "entry_price": -0.44303297658724267,
+      "entry_time": "2026-01-15 00:05:46.229651",
+      "quantity": 1,
+      "status": "PositionStatus.OPEN",
+      "current_value": -0.44303297658724267,
+      "greeks": {
+        "delta": -0.4807806198594605,
+        "gamma": 0.0,
+        "theta": 0.0,
+        "vega": 0.0
+      },
+      "max_loss": 43.0,
+      "max_profit": 157.0,
+      "exit_order_id": null,
+      "exit_price": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "total_commission": 1.3
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "PO00000001",
+      "candidate_id": "C000005",
+      "symbol": "TLT",
+      "legs": [
+        {
+          "option_type": "call",
+          "strike": 88.5,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.2,
+          "delta": 0.41044038568654784,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "call",
+          "strike": 90.5,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.01,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "order_type": "OrderType.LIMIT",
+      "limit_price": -0.1938,
+      "status": "OrderStatus.FILLED",
+      "fills": [
+        {
+          "fill_id": "PF00000001",
+          "timestamp": "2026-01-15 00:04:19.097690",
+          "quantity": 1,
+          "price": -0.19389694168724306,
+          "commission": 1.3
+        }
+      ],
+      "created_at": "2026-01-15 00:04:18.938782",
+      "updated_at": "2026-01-15 00:04:19.097706",
+      "filled_at": "2026-01-15 00:04:19.097698",
+      "cancelled_at": null,
+      "rejection_reason": null,
+      "total_commission": 1.3
+    },
+    {
+      "order_id": "PO00000002",
+      "candidate_id": "C000002",
+      "symbol": "XLF",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 54.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.26,
+          "delta": -0.4049674337370084,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 52.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.01,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "order_type": "OrderType.LIMIT",
+      "limit_price": -0.255,
+      "status": "OrderStatus.FILLED",
+      "fills": [
+        {
+          "fill_id": "PF00000002",
+          "timestamp": "2026-01-15 00:04:19.262886",
+          "quantity": 1,
+          "price": -0.25613837476455903,
+          "commission": 1.3
+        }
+      ],
+      "created_at": "2026-01-15 00:04:19.097774",
+      "updated_at": "2026-01-15 00:04:19.262898",
+      "filled_at": "2026-01-15 00:04:19.262890",
+      "cancelled_at": null,
+      "rejection_reason": null,
+      "total_commission": 1.3
+    },
+    {
+      "order_id": "PO00000003",
+      "candidate_id": "C000006",
+      "symbol": "TLT",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 88.5,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.29,
+          "delta": -0.5895596143134522,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 86.5,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.01,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "order_type": "OrderType.LIMIT",
+      "limit_price": -0.28559999999999997,
+      "status": "OrderStatus.FILLED",
+      "fills": [
+        {
+          "fill_id": "PF00000003",
+          "timestamp": "2026-01-15 00:04:19.437682",
+          "quantity": 1,
+          "price": -0.28946530747215965,
+          "commission": 1.3
+        }
+      ],
+      "created_at": "2026-01-15 00:04:19.262944",
+      "updated_at": "2026-01-15 00:04:19.437693",
+      "filled_at": "2026-01-15 00:04:19.437687",
+      "cancelled_at": null,
+      "rejection_reason": null,
+      "total_commission": 1.3
+    },
+    {
+      "order_id": "PO00000004",
+      "candidate_id": "C000001",
+      "symbol": "XLF",
+      "legs": [
+        {
+          "option_type": "call",
+          "strike": 54.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.43,
+          "delta": 0.5950325662629916,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "call",
+          "strike": 56.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.0,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "order_type": "OrderType.LIMIT",
+      "limit_price": -0.4386,
+      "status": "OrderStatus.FILLED",
+      "fills": [
+        {
+          "fill_id": "PF00000004",
+          "timestamp": "2026-01-15 00:04:19.603156",
+          "quantity": 1,
+          "price": -0.4393626274398252,
+          "commission": 1.3
+        }
+      ],
+      "created_at": "2026-01-15 00:04:19.437735",
+      "updated_at": "2026-01-15 00:04:19.603167",
+      "filled_at": "2026-01-15 00:04:19.603160",
+      "cancelled_at": null,
+      "rejection_reason": null,
+      "total_commission": 1.3
+    },
+    {
+      "order_id": "PO00000005",
+      "candidate_id": "C000003",
+      "symbol": "XLE",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 48.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.45,
+          "delta": -0.4807806198594605,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 46.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.02,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "order_type": "OrderType.LIMIT",
+      "limit_price": -0.4386,
+      "status": "OrderStatus.FILLED",
+      "fills": [
+        {
+          "fill_id": "PF00000005",
+          "timestamp": "2026-01-15 00:04:19.778076",
+          "quantity": 1,
+          "price": -0.4388613812089107,
+          "commission": 1.3
+        }
+      ],
+      "created_at": "2026-01-15 00:04:19.603208",
+      "updated_at": "2026-01-15 00:04:19.778087",
+      "filled_at": "2026-01-15 00:04:19.778081",
+      "cancelled_at": null,
+      "rejection_reason": null,
+      "total_commission": 1.3
+    },
+    {
+      "order_id": "PO00000006",
+      "candidate_id": "C000009",
+      "symbol": "XLE",
+      "legs": [
+        {
+          "option_type": "put",
+          "strike": 48.0,
+          "expiry": "2026-01-16",
+          "side": "buy",
+          "quantity": 1,
+          "premium": 0.45,
+          "delta": -0.4807806198594605,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        },
+        {
+          "option_type": "put",
+          "strike": 46.0,
+          "expiry": "2026-01-16",
+          "side": "sell",
+          "quantity": 1,
+          "premium": 0.02,
+          "delta": 0.0,
+          "gamma": 0.0,
+          "theta": 0.0,
+          "vega": 0.0
+        }
+      ],
+      "order_type": "OrderType.LIMIT",
+      "limit_price": -0.4386,
+      "status": "OrderStatus.FILLED",
+      "fills": [
+        {
+          "fill_id": "PF00000006",
+          "timestamp": "2026-01-15 00:05:46.229646",
+          "quantity": 1,
+          "price": -0.44303297658724267,
+          "commission": 1.3
+        }
+      ],
+      "created_at": "2026-01-15 00:05:45.731462",
+      "updated_at": "2026-01-15 00:05:46.229658",
+      "filled_at": "2026-01-15 00:05:46.229651",
+      "cancelled_at": null,
+      "rejection_reason": null,
+      "total_commission": 1.3
+    }
+  ],
+  "balance": 1000.0,
+  "equity": 1000.0
+}

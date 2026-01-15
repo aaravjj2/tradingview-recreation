@@ -188,6 +188,39 @@ class PaperBroker:
         self._metrics = FillMetrics()
         if self.deterministic:
             self._rng = random.Random(self.seed)
+
+    @property
+    def orders(self) -> Dict[str, PaperOrder]:
+        """Get all orders."""
+        return self._orders
+
+    @orders.setter
+    def orders(self, value: Dict[str, PaperOrder]):
+        """Set orders (for state restoration)."""
+        self._orders = value
+        # Sync counters
+        max_oid = 0
+        max_fid = 0
+        for order in value.values():
+            # Parse order ID
+            try:
+                if order.order_id.startswith('O'):
+                    oid = int(order.order_id[1:])
+                    max_oid = max(max_oid, oid)
+            except ValueError:
+                pass
+            
+            # Parse fill IDs
+            for fill in order.fills:
+                try:
+                    if fill.fill_id.startswith('F'):
+                        fid = int(fill.fill_id[1:])
+                        max_fid = max(max_fid, fid)
+                except ValueError:
+                    pass
+                    
+        self._order_counter = max_oid
+        self._fill_counter = max_fid
     
     def submit_order(
         self,

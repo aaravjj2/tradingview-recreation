@@ -2,6 +2,13 @@
 FastAPI application for REST and WebSocket APIs.
 """
 
+# Load environment before any other imports that might read os.environ
+from pathlib import Path
+from dotenv import load_dotenv
+_keys_path = Path(__file__).parent.parent.parent / "keys.env"
+if _keys_path.exists():
+    load_dotenv(_keys_path)
+
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -14,12 +21,15 @@ from ..config import get_settings
 from ..persistence import init_database, get_database
 from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast, autopilot
 from .websocket import router as ws_router
+from .autopilot_routes import router as autopilot_api_router
+from .verification_routes import router as verification_router
 
 
 logger = structlog.get_logger()
 
 
 from ..ingestion.main import IngestionService
+from ..autopilot.service import get_autopilot_service
 import os
 
 @asynccontextmanager
@@ -30,6 +40,14 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_database()
     logger.info("database_initialized")
+    
+    # Start Autopilot Service (Background)
+    # This runs the cycle every 60 seconds autonomously
+    try:
+        autopilot_service = get_autopilot_service()
+        await autopilot_service.start_background_loop(interval_seconds=60)
+    except Exception as e:
+        logger.error(f"Failed to start autopilot service: {e}")
     
     # Start Ingestion Service (Background)
     settings = get_settings()
@@ -76,6 +94,9 @@ async def lifespan(app: FastAPI):
     
     # Cleanup Ingestion
     await ingestion.stop()
+    
+    # Cleanup Autopilot
+    await autopilot_service.stop_background_loop()
     
     # Cleanup DB
     db = get_database()
@@ -128,6 +149,10 @@ def create_app() -> FastAPI:
     app.include_router(forecast.router, prefix="/api/v1", tags=["forecast"])
     app.include_router(autopilot.router, prefix="/api/v1", tags=["autopilot"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
+    
+    # New autopilot and verification routes
+    app.include_router(autopilot_api_router, tags=["autopilot-api"])
+    app.include_router(verification_router, tags=["verification"])
     
     # Global exception handler
     @app.exception_handler(Exception)

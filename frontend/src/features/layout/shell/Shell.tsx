@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { TopBar } from './TopBar';
-import { LeftNav } from './LeftNav';
-import type { ViewId } from './LeftNav';
+import { TopAppBarEnhanced } from './TopAppBarEnhanced';
+import { LeftNavEnhanced, type ViewId } from './LeftNavEnhanced';
 import { CommandPalette } from './CommandPalette';
 import { ChartCanvas } from '../../chart/ChartCanvas';
 import { ChartHeaderStrip } from '../../chart/ChartHeaderStrip';
@@ -11,14 +10,16 @@ import { RightPanel } from '../RightPanel';
 import { ReplayView } from '../views/ReplayView';
 import { StrategiesView } from '../views/StrategiesView';
 import { AlertsView } from '../views/AlertsView';
-import { PortfolioView } from '../views/PortfolioView';
+import { EnhancedPortfolioView } from '../../portfolio/EnhancedPortfolioView';
 import { ReportsView } from '../views/ReportsView';
 import { SettingsView } from '../views/SettingsView';
-import { DashboardView } from '../views/DashboardView';
+import { UnifiedDashboardView } from '../views/UnifiedDashboardView';
 import { AutomationView } from '../views/AutomationView';
 import { IncidentsView } from '../views/IncidentsView';
 import { OptionsView } from '../views/OptionsView';
 import { AutopilotView } from '../views/AutopilotView';
+import { OrdersView } from '../views/OrdersView';
+import { RunsAuditView } from '../views/RunsAuditView';
 import { ToastProvider } from '../../../ui/Toast';
 import { useAppStore } from '../../../state/appStore';
 import { useWorkspaceStore } from '../../../state/workspaceStore';
@@ -26,7 +27,7 @@ import { TrustUX } from './TrustUX';
 
 export function Shell() {
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-    const [activeView, setActiveView] = useState<ViewId>('monitor');
+    const [activeView, setActiveView] = useState<ViewId>('dashboard');
     const { rightDockOpen, bottomDockOpen, setMode } = useAppStore();
     const { setActiveWorkspace } = useWorkspaceStore();
 
@@ -149,7 +150,7 @@ export function Shell() {
                     </PanelGroup>
                 );
             case 'dashboard':
-                return <DashboardView />;
+                return <UnifiedDashboardView />;
             case 'options':
                 return <OptionsView />;
             case 'autopilot':
@@ -161,7 +162,11 @@ export function Shell() {
             case 'alerts':
                 return <AlertsView />;
             case 'portfolio':
-                return <PortfolioView />;
+                return <EnhancedPortfolioView />;
+            case 'orders':
+                return <OrdersView />;
+            case 'runs':
+                return <RunsAuditView />;
             case 'reports':
                 return <ReportsView />;
             case 'automation':
@@ -178,10 +183,10 @@ export function Shell() {
     return (
         <ToastProvider>
             <div className="h-screen w-screen flex flex-col bg-background text-text overflow-hidden font-sans selection:bg-brand/30">
-                <TopBar />
+                <TopAppBarEnhanced />
 
                 <div className="flex-1 flex overflow-hidden">
-                    <LeftNav activeView={activeView} onViewChange={setActiveView} />
+                    <LeftNavEnhanced activeView={activeView} onViewChange={setActiveView} />
 
                     <main className="flex-1 overflow-hidden">
                         {renderMainView()}

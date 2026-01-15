@@ -278,22 +278,6 @@ async def list_autopilot_runs(status: Optional[str] = None) -> Dict[str, Any]:
         return {"runs": normalized}
     except Exception as e:
         return {"runs": []}
-        "completed_at": last_run.completed_at.isoformat() if last_run.completed_at else None,
-        "counts": {
-            "candidates": last_run.candidates_count,
-            "selected": last_run.selected_count,
-            "validated": last_run.validated_count,
-            "placed": last_run.placed_count,
-            "filled": last_run.filled_count,
-            "failed": last_run.failed_count,
-        },
-        "by_status": by_status,
-        "skip_reasons": list(set(skip_reasons))[:10],
-        "llm_provider": last_run.llm_provider,
-        "selection_method": last_run.selection_method,
-        "rationale": last_run.rationale,
-        "error_message": last_run.error_message,
-    }
 
 
 @router.get("/positions")

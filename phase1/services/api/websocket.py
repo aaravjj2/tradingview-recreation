@@ -186,35 +186,49 @@ async def websocket_bars(
         })
 
         # Send recent history (Backfill) using tiered store (cache preferred)
-        try:
-            from ..persistence.repository import BarRepository
-            from ..persistence.cache import TieredBarStore, BarCache
-
-            repo = BarRepository()
-            store = TieredBarStore(cache=BarCache(), repository=repo)
-
-            recent = await store.get_recent_bars(symbol.upper(), timeframe, count=1000)
-
-            # Send history in chronological order (oldest -> newest)
-            if recent:
-                for bar in recent:
-                    msg = BarMessage.from_bar(bar)
-                    await manager.send_personal(websocket, msg.model_dump())
-
-            # After sending recent bars, ensure we also send the canonical latest bar
+        # Offload the potentially long-running history send to a background task
+        async def _send_history_task():
             try:
-                latest_bar = await store.get_latest_bar(symbol.upper(), timeframe)
-                if latest_bar and (len(recent) == 0 or latest_bar.ts_start_ms > (recent[-1].ts_start_ms if recent else 0)):
-                    latest_msg = BarMessage.from_bar(latest_bar)
-                    await manager.send_personal(websocket, latest_msg.model_dump())
-                    logger.info("ws_sent_latest_bar", symbol=symbol, bar_index=latest_bar.bar_index)
-            except Exception:
-                # Non-fatal - continue
-                pass
+                from ..persistence.repository import BarRepository
+                from ..persistence.cache import TieredBarStore, BarCache
 
-            logger.info("ws_sent_history", symbol=symbol, count=len(recent))
+                repo = BarRepository()
+                store = TieredBarStore(cache=BarCache(), repository=repo)
+
+                recent = await store.get_recent_bars(symbol.upper(), timeframe, count=1000)
+
+                # Send history in chronological order (oldest -> newest)
+                if recent:
+                    for bar in recent:
+                        try:
+                            msg = BarMessage.from_bar(bar)
+                            await manager.send_personal(websocket, msg.model_dump())
+                        except Exception as e:
+                            logger.warning("ws_send_history_item_failed", error=str(e))
+
+                # After sending recent bars, ensure we also send the canonical latest bar
+                try:
+                    latest_bar = await store.get_latest_bar(symbol.upper(), timeframe)
+                    if latest_bar and (len(recent) == 0 or latest_bar.ts_start_ms > (recent[-1].ts_start_ms if recent else 0)):
+                        try:
+                            latest_msg = BarMessage.from_bar(latest_bar)
+                            await manager.send_personal(websocket, latest_msg.model_dump())
+                            logger.info("ws_sent_latest_bar", symbol=symbol, bar_index=latest_bar.bar_index)
+                        except Exception as e:
+                            logger.warning("ws_send_latest_failed", error=str(e))
+                except Exception:
+                    # Non-fatal - continue
+                    pass
+
+                logger.info("ws_sent_history", symbol=symbol, count=len(recent))
+            except Exception as e:
+                logger.error("ws_history_send_error", error=str(e))
+
+        # Schedule history send in background so handshake and other clients aren't blocked
+        try:
+            asyncio.create_task(_send_history_task())
         except Exception as e:
-            logger.error("ws_history_send_error", error=str(e))
+            logger.error("ws_schedule_history_failed", error=str(e))
         
         # Listen for messages
         while True:

@@ -3,15 +3,18 @@ Integration tests for API routes - Volume Profile, Patterns, Fundamentals
 """
 import pytest
 import asyncio
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from datetime import datetime, timezone
 from services.api.main import app
+
+# Create transport for ASGI testing
+_transport = ASGITransport(app=app)
 
 
 @pytest.mark.asyncio
 async def test_volume_profile_endpoint():
     """Test volume profile API endpoint"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=_transport, base_url="http://test") as client:
         response = await client.get(
             "/api/v1/profiles/volume-profile/AAPL",
             params={"profile_type": "visible_range", "limit": 100}
@@ -28,7 +31,7 @@ async def test_volume_profile_endpoint():
 @pytest.mark.asyncio
 async def test_anchored_vwap_endpoint():
     """Test anchored VWAP API endpoint"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=_transport, base_url="http://test") as client:
         anchor_date = datetime(2024, 1, 1).isoformat()
         response = await client.get(
             f"/api/v1/profiles/anchored-vwap/AAPL",
@@ -41,7 +44,7 @@ async def test_anchored_vwap_endpoint():
 @pytest.mark.asyncio
 async def test_atr_bands_endpoint():
     """Test ATR bands API endpoint"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=_transport, base_url="http://test") as client:
         response = await client.get(
             "/api/v1/profiles/atr-bands/AAPL",
             params={"period": 14, "multiplier": 2.0, "limit": 100}
@@ -53,7 +56,7 @@ async def test_atr_bands_endpoint():
 @pytest.mark.asyncio
 async def test_ema_regime_endpoint():
     """Test EMA regime API endpoint"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=_transport, base_url="http://test") as client:
         response = await client.get(
             "/api/v1/profiles/ema-regime/AAPL",
             params={"limit": 200}
@@ -65,7 +68,7 @@ async def test_ema_regime_endpoint():
 @pytest.mark.asyncio
 async def test_patterns_endpoint():
     """Test pattern detection API endpoint"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=_transport, base_url="http://test") as client:
         response = await client.get(
             "/api/v1/patterns/detect/AAPL",
             params={"lookback": 50, "min_confidence": 0.7}
@@ -82,7 +85,7 @@ async def test_patterns_endpoint():
 @pytest.mark.asyncio
 async def test_fundamentals_endpoint():
     """Test fundamentals API endpoint"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=_transport, base_url="http://test") as client:
         response = await client.get("/api/v1/fundamentals/AAPL")
         
         # Should return 200 with data from yfinance
@@ -103,7 +106,7 @@ async def test_fundamentals_endpoint():
 @pytest.mark.asyncio
 async def test_fundamentals_invalid_symbol():
     """Test fundamentals with invalid symbol"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=_transport, base_url="http://test") as client:
         response = await client.get("/api/v1/fundamentals/INVALID_SYMBOL_XYZ")
         
         # Should handle gracefully

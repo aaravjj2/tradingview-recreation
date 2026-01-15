@@ -17,6 +17,7 @@ from .candidates import CandidateGenerator, TradeCandidate
 from .selector import CandidateSelector, DeterministicRanker, SelectionResult, create_selector
 from .validator import TradeValidator, BatchValidationResult
 from .paper_broker import PaperBroker, PaperOrder, OrderStatus
+from .alpaca_broker import AlpacaOptionsBroker  # Use Alpaca-enabled broker
 from .position_manager import PositionManager, PortfolioState
 from .monitor import PositionMonitor, MonitoringResult
 from .reporting import ReportGenerator, ActivityLogger, DailyReport
@@ -136,7 +137,7 @@ class AutopilotRunloop:
         self.candidate_gen = CandidateGenerator(config, self.universe, self.features)
         self.selector = create_selector(config, llm_provider)
         self.validator = TradeValidator(config, self.universe)
-        self.broker = PaperBroker(deterministic=True)
+        self.broker = AlpacaOptionsBroker(deterministic=True, alpaca_enabled=config.enable_alpaca)  # Alpaca-enabled
         self.positions = PositionManager(initial_equity=config.paper_equity)
         self.monitor = PositionMonitor(config, self.positions, self.broker)
         self.reporter = ReportGenerator(config, self.positions)
@@ -300,28 +301,74 @@ class AutopilotRunloop:
         return result
     
     def _fetch_market_data(self) -> tuple:
-        """Fetch market data from provider."""
+        """Fetch market data from Tradier/yFinance provider with mock fallback."""
         if self.data_provider is None:
-            # Return mock data for testing
             return self._get_mock_market_data()
         
-        # Fetch from provider
+        # Fetch from real data provider (Tradier + yFinance)
         symbols = [s.symbol for s in self.universe.get_tradeable_symbols()]
         option_chains = {}
         current_prices = {}
         
         for symbol in symbols:
             try:
-                chain = self.data_provider.get_option_chain(symbol)
-                price = self.data_provider.get_price(symbol)
-                if chain:
-                    option_chains[symbol] = chain
-                if price:
+                # Get stock price from yFinance/Tradier
+                price = self.data_provider.get_stock_price(symbol)
+                if price > 0:
                     current_prices[symbol] = price
+                
+                # Get options chain from Tradier
+                chain = self.data_provider.get_options_chain(symbol)
+                if chain:
+                    option_chains[symbol] = self._convert_chain_format(chain, price)
+                    
             except Exception as e:
                 logger.warning(f"Failed to fetch data for {symbol}: {e}")
         
+        # Log what we got
+        logger.info(f"Fetched prices for {len(current_prices)} symbols, chains for {len(option_chains)}")
+        
+        # If we got no option chains, fall back to mock data
+        if not option_chains:
+            logger.warning("No real option chains available - using mock data")
+            return self._get_mock_market_data()
+        
         return option_chains, current_prices
+    
+    def _convert_chain_format(self, chain, price) -> Dict:
+        """Convert OptionQuote list to expected chain format."""
+        from datetime import datetime
+        
+        chains_by_expiry = {}
+        for opt in chain:
+            exp_str = opt.expiry.isoformat()
+            if exp_str not in chains_by_expiry:
+                chains_by_expiry[exp_str] = {"puts": [], "calls": []}
+            
+            opt_data = {
+                "strike": opt.strike,
+                "bid": opt.bid,
+                "ask": opt.ask,
+                "last": opt.last,
+                "iv": opt.implied_vol,
+                "delta": opt.delta,
+                "gamma": opt.gamma,
+                "theta": opt.theta,
+                "vega": opt.vega,
+                "volume": opt.volume,
+                "oi": opt.open_interest,
+            }
+            
+            if opt.option_type == "put":
+                chains_by_expiry[exp_str]["puts"].append(opt_data)
+            else:
+                chains_by_expiry[exp_str]["calls"].append(opt_data)
+        
+        return {
+            "expirations": list(chains_by_expiry.keys()),
+            "chains": chains_by_expiry,
+            "underlying_price": price,
+        }
     
     def _get_mock_market_data(self) -> tuple:
         """Get mock market data for testing."""

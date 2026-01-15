@@ -106,24 +106,33 @@ class OptionsPosition:
         return (self.net_pnl / self.max_loss) * 100
     
     def to_dict(self) -> Dict[str, Any]:
+        # Handle status whether it's enum or string
+        status_value = self.status.value if isinstance(self.status, PositionStatus) else self.status
+        # Handle greeks whether it's object with to_dict() or already a dict
+        greeks_value = self.greeks.to_dict() if hasattr(self.greeks, 'to_dict') else self.greeks
+        # Handle legs - may be objects or dicts
+        legs_value = [
+            leg.to_dict() if hasattr(leg, 'to_dict') else leg 
+            for leg in self.legs
+        ]
         return {
             "position_id": self.position_id,
             "symbol": self.symbol,
             "template": self.template,
-            "legs": [leg.to_dict() for leg in self.legs],
+            "legs": legs_value,
             "entry_order_id": self.entry_order_id,
             "entry_price": self.entry_price,
-            "entry_time": self.entry_time.isoformat(),
+            "entry_time": self.entry_time.isoformat() if hasattr(self.entry_time, 'isoformat') else self.entry_time,
             "quantity": self.quantity,
-            "status": self.status.value,
+            "status": status_value,
             "current_value": self.current_value,
-            "greeks": self.greeks.to_dict(),
+            "greeks": greeks_value,
             "max_loss": self.max_loss,
             "max_profit": self.max_profit,
             "dte": self.dte,
             "exit_order_id": self.exit_order_id,
             "exit_price": self.exit_price,
-            "exit_time": self.exit_time.isoformat() if self.exit_time else None,
+            "exit_time": self.exit_time.isoformat() if self.exit_time and hasattr(self.exit_time, 'isoformat') else self.exit_time,
             "exit_reason": self.exit_reason,
             "realized_pnl": self.realized_pnl,
             "unrealized_pnl": self.unrealized_pnl,
@@ -201,6 +210,50 @@ class PositionManager:
         self._daily_realized_pnl = 0.0
         self._total_realized_pnl = 0.0
         self._last_reset_date = None
+
+    @property
+    def positions(self) -> Dict[str, OptionsPosition]:
+        """Get all managed positions."""
+        return self._positions
+
+    @positions.setter
+    def positions(self, value: Dict[str, OptionsPosition]):
+        """Set positions (used for state restoration)."""
+        self._positions = value
+        # Reset counter based on max existing ID
+        max_id = 0
+        for pid in value.keys():
+            if pid.startswith('P'):
+                try:
+                    num = int(pid[1:])
+                    max_id = max(max_id, num)
+                except ValueError:
+                    pass
+    @positions.setter
+    def positions(self, value: Dict[str, OptionsPosition]):
+        """Set positions (used for state restoration)."""
+        self._positions = value
+        # Reset counter based on max existing ID
+        max_id = 0
+        for pid in value.keys():
+            if pid.startswith('P'):
+                try:
+                    num = int(pid[1:])
+                    max_id = max(max_id, num)
+                except ValueError:
+                    pass
+        self._position_counter = max_id
+
+    @property
+    def equity(self) -> float:
+        """Total account equity."""
+        unrealized = sum(p.unrealized_pnl for p in self._positions.values() if p.status == PositionStatus.OPEN)
+        return self.initial_equity + self._total_realized_pnl + unrealized
+
+    @property
+    def cash(self) -> float:
+        """Available cash (simplified as equity for now)."""
+        return self.equity
     
     def create_position_from_order(
         self,

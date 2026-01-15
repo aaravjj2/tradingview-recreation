@@ -42,7 +42,7 @@ const statusIcons: Record<OrderStatus, React.ReactNode> = {
     rejected: <AlertCircle size={14} className="text-red-500" />,
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export function OrdersTile({ tileId, onClose, onMaximize, isMaximized }: TileProps) {
     // Reserved for future integration: tileId will be used for persistent state
     // onClose, onMaximize, isMaximized are handled by parent TileWrapper
