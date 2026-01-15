@@ -13,8 +13,8 @@ test.describe('Automation View', () => {
         await request.post(`${API_BASE}/automation/disarm`);
 
         await page.goto('/');
-        // Navigate to Automation view via left nav item
-        await page.getByRole('button', { name: /automation/i }).click();
+        // Navigate to Autopilot view via left nav item
+        await page.getByTestId('nav-item-autopilot').click();
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(500); // Wait for component to fetch status
     });

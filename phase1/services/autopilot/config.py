@@ -37,23 +37,23 @@ class StrategyTemplate(str, Enum):
 # Default liquid universe
 DEFAULT_UNIVERSE = [
     # Mega-cap tech
-    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD",
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "INTC", "PLTR",
     # Core ETFs
-    "SPY", "QQQ", "IWM", "DIA",
+    "SPY", "QQQ",
     # Sector ETFs
     "XLK", "SMH", "XLF", "XLE",
-    # Optional hedges
-    "TLT", "GLD",
+    # Optional hedges (no bonds)
+    "GLD", "PPLT", "SLV",
 ]
 
 # Universe clusters for concentration limits
 UNIVERSE_CLUSTERS = {
-    "mega_tech": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD"],
-    "broad_etfs": ["SPY", "QQQ", "IWM", "DIA"],
+    "mega_tech": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "INTC", "PLTR"],
+    "broad_etfs": ["SPY", "QQQ"],
     "sector_tech": ["XLK", "SMH"],
     "sector_fin": ["XLF"],
     "sector_energy": ["XLE"],
-    "hedges": ["TLT", "GLD"],
+    "hedges": ["GLD", "PPLT", "SLV"],
 }
 
 

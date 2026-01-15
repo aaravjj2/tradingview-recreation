@@ -521,8 +521,8 @@ The main application shell provides:
    - Real-time quotes via WebSocket
    - Historical bars via REST
    - **Credentials configured in keys.env:**
-     - APCA_API_KEY_ID=PKMZZAL28UP5G05AECSW
-     - APCA_API_SECRET_KEY=QavdtLfphkusZaXaVgcL4xBULaXHcUIFagIrupnT
+     - APCA_API_KEY_ID=<set in keys.env>
+     - APCA_API_SECRET_KEY=<set in keys.env>
      - APCA_ENDPOINT=https://paper-api.alpaca.markets
 
 4. **YahooConnector** (`connectors/yahoo_connector.py`)

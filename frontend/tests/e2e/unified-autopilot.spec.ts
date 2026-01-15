@@ -8,54 +8,51 @@ test.describe('Unified Autopilot + Forecast Integration', () => {
         await page.waitForSelector('nav', { timeout: 10000 });
     });
 
-    test('Automation view shows Forecast Intelligence panel', async ({ page }) => {
-        // Navigate to Automation view
-        await page.getByTestId('nav-item-automation').click();
+    test('Autopilot view shows tabs and dashboard', async ({ page }) => {
+        // Navigate to Autopilot view
+        await page.getByTestId('nav-item-autopilot').click();
         await page.waitForTimeout(2000);
 
-        // Take screenshot of Automation view
-        await page.screenshot({ path: 'test-results/automation-forecast-panel.png', fullPage: true });
+        // Take screenshot of Autopilot view
+        await page.screenshot({ path: 'test-results/autopilot-view.png', fullPage: true });
 
-        // Check for Forecast Intelligence text
-        const forecastPanel = page.locator('text=Forecast Intelligence');
-        await expect(forecastPanel).toBeVisible({ timeout: 10000 });
+        // Check for Dashboard tab
+        const dashboardTab = page.getByTestId('autopilot-tab-dashboard');
+        await expect(dashboardTab).toBeVisible({ timeout: 10000 });
 
-        // Check for Current Forecast section
-        const currentForecast = page.locator('text=Current Forecast');
-        await expect(currentForecast).toBeVisible();
+        // Check for Positions tab
+        const positionsTab = page.getByTestId('autopilot-tab-positions');
+        await expect(positionsTab).toBeVisible();
 
-        // Check for Configuration section
-        const configSection = page.locator('text=Configuration');
-        await expect(configSection).toBeVisible();
+        // Check for Activity tab
+        const activityTab = page.getByTestId('autopilot-tab-activity');
+        await expect(activityTab).toBeVisible();
 
-        // Check for specific config elements
-        await expect(page.locator('.text-text-secondary', { hasText: 'Enabled' })).toBeVisible();
-        await expect(page.locator('.text-text-secondary', { hasText: 'Confidence' })).toBeVisible();
-        await expect(page.getByText('Filter Trades')).toBeVisible();
-        await expect(page.getByText('Size by Vol')).toBeVisible();
-
-        // Verify Market Closed warning is present (since it's night)
-        await expect(page.getByText('Market is currently closed')).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Market Closed' })).toBeDisabled();
-
-        // Capture proof
-        await page.screenshot({ path: 'test-results/automation-market-closed.png' });
+        // Check for Settings tab
+        const settingsTab = page.getByTestId('autopilot-tab-settings');
+        await expect(settingsTab).toBeVisible();
     });
 
-    test('Forecast config toggles are interactive', async ({ page }) => {
-        // Navigate to Automation view
-        await page.getByTestId('nav-item-automation').click();
+    test('Autopilot tabs are interactive', async ({ page }) => {
+        // Navigate to Autopilot view
+        await page.getByTestId('nav-item-autopilot').click();
         await page.waitForTimeout(2000);
 
-        // Find and click the "Filter Trades" toggle
-        const filterToggle = page.locator('button:has-text("YES")').first();
+        // Click on Settings tab
+        await page.getByTestId('autopilot-tab-settings').click();
+        await page.waitForTimeout(500);
 
-        if (await filterToggle.isVisible()) {
-            await filterToggle.click();
-            await page.waitForTimeout(500);
+        // Verify Settings tab is now active
+        await expect(page.getByTestId('autopilot-tab-settings')).toHaveClass(/border-blue-500/);
 
-            // Take screenshot after toggle
-            await page.screenshot({ path: 'test-results/automation-forecast-toggled.png', fullPage: true });
-        }
+        // Take screenshot of settings view
+        await page.screenshot({ path: 'test-results/autopilot-settings-view.png', fullPage: true });
+
+        // Click back to Dashboard
+        await page.getByTestId('autopilot-tab-dashboard').click();
+        await page.waitForTimeout(500);
+
+        // Take screenshot
+        await page.screenshot({ path: 'test-results/autopilot-dashboard-view.png', fullPage: true });
     });
 });

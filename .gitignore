@@ -10,6 +10,15 @@ __pycache__/
 *.env
 .env.*
 keys.env
+phase1/keys.env
+keys.env.local
+.env.local
+*.pem
+*.key
+*.crt
+# Local secret files
+*.secret
+secrets*
 
 # Caches and test artifacts
 .cache/

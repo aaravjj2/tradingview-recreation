@@ -32,8 +32,8 @@
 - **Environment Variables**:
   ```
   LLM_MODE=hybrid              # or: off, groq, gemini, deterministic
-  GROQ_API_KEY=gsk_cwHPrkG5... # (already in keys.env)
-  GEMINI_API_KEY=AIzaSyC-U8...# (already in keys.env as "Gemini API Key")
+  GROQ_API_KEY=<set in keys.env or environment>
+  GEMINI_API_KEY=<set in keys.env or environment>
   GROQ_MODEL=groq/compound     # optional, defaults to groq/compound
   GEMINI_MODEL=gemini-1.5-flash # optional
   ```
@@ -210,7 +210,7 @@ cd '/home/aarav/Aarav/Tradingview recreation/frontend' && npx playwright test
 ### Manual Testing LLM Providers
 ```bash
 # Test Gemini provider
-export GEMINI_API_KEY="AIzaSyC-U8zjJ-3J1lkdfc8bwLrlYvstKJz-RnM"
+export GEMINI_API_KEY="<set in keys.env or environment>"
 python3 -c "
 from phase1.services.llm.providers import create_gemini_provider
 p = create_gemini_provider()
@@ -220,8 +220,8 @@ print('Health:', p.health_check())
 
 # Test hybrid selector
 export LLM_MODE=hybrid
-export GROQ_API_KEY="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"
-export GEMINI_API_KEY="AIzaSyC-U8zjJ-3J1lkdfc8bwLrlYvstKJz-RnM"
+export GROQ_API_KEY="<set in keys.env or environment>"
+export GEMINI_API_KEY="<set in keys.env or environment>"
 python3 -c "
 from phase1.services.autopilot.hybrid_selector import create_hybrid_selector
 s = create_hybrid_selector()
