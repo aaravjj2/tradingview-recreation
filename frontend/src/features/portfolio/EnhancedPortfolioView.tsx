@@ -90,10 +90,10 @@ interface PortfolioStats {
 
 // Summary Component
 function PortfolioSummaryCard({ stats, verification }: { stats: PortfolioStats | null; verification: BrokerVerification | null }) {
-    const formatCurrency = (v: number) => new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
+    const formatCurrency = (v: number) => new Intl.NumberFormat('en-US', {
+        style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 2 
+        minimumFractionDigits: 2
     }).format(v);
 
     return (
@@ -169,7 +169,7 @@ function BrokerVerificationPanel({ verification, onRefresh }: { verification: Br
 
     return (
         <div className="bg-element-bg rounded-lg border border-border m-4">
-            <button 
+            <button
                 onClick={() => setExpanded(!expanded)}
                 className="w-full p-3 flex items-center justify-between hover:bg-hover rounded-t-lg"
             >
@@ -253,7 +253,7 @@ function BrokerVerificationPanel({ verification, onRefresh }: { verification: Br
 
 // Position Row with Exit Controls
 function PositionRow({ position, onExit }: { position: UnifiedPosition; onExit: (id: string) => void }) {
-    const formatCurrency = (v: number) => `$${v.toFixed(2)}`;
+    const formatCurrency = (v: number | undefined) => `$${(v ?? 0).toFixed(2)}`;
     const isOption = position.asset_type === 'option';
 
     return (
@@ -293,7 +293,7 @@ function PositionRow({ position, onExit }: { position: UnifiedPosition; onExit: 
                     {position.pnl >= 0 ? '+' : ''}{formatCurrency(position.pnl)}
                 </div>
                 <div className={`text-[10px] ${position.pnl >= 0 ? 'text-up' : 'text-down'}`}>
-                    ({position.pnl_percent >= 0 ? '+' : ''}{position.pnl_percent.toFixed(2)}%)
+                    ({position.pnl_percent >= 0 ? '+' : ''}{(position.pnl_percent ?? 0).toFixed(2)}%)
                 </div>
             </td>
             <td className="px-4 py-2">
@@ -337,11 +337,11 @@ export function EnhancedPortfolioView() {
         try {
             setLoading(true);
             const response = await fetch(`${API_BASE}/portfolio/unified`);
-            
+
             if (!response.ok) {
                 throw new Error('Failed to fetch portfolio');
             }
-            
+
             const data = await response.json();
             setPositions(data.positions || []);
             setOrders(data.orders || []);
@@ -462,7 +462,7 @@ export function EnhancedPortfolioView() {
             const response = await fetch(`${API_BASE}/portfolio/positions/${positionId}/exit`, {
                 method: 'POST',
             });
-            
+
             if (response.ok) {
                 addToast({ message: 'Exit order submitted', variant: 'success' });
                 fetchPortfolio();
@@ -500,9 +500,9 @@ export function EnhancedPortfolioView() {
             <PortfolioSummaryCard stats={stats} verification={verification} />
 
             {/* Broker Verification Panel */}
-            <BrokerVerificationPanel 
-                verification={verification} 
-                onRefresh={fetchVerification} 
+            <BrokerVerificationPanel
+                verification={verification}
+                onRefresh={fetchVerification}
             />
 
             {/* Main Content */}
@@ -555,9 +555,9 @@ export function EnhancedPortfolioView() {
                         </thead>
                         <tbody>
                             {filteredPositions.map(position => (
-                                <PositionRow 
-                                    key={position.id} 
-                                    position={position} 
+                                <PositionRow
+                                    key={position.id}
+                                    position={position}
                                     onExit={handleExitPosition}
                                 />
                             ))}
@@ -575,15 +575,15 @@ export function EnhancedPortfolioView() {
                 <TabsContent value="orders" className="flex-1 overflow-auto">
                     <Table
                         columns={[
-                            { 
-                                key: 'created_at', 
-                                header: 'Time', 
-                                render: (row) => new Date(row.created_at).toLocaleTimeString() 
+                            {
+                                key: 'created_at',
+                                header: 'Time',
+                                render: (row) => new Date(row.created_at).toLocaleTimeString()
                             },
                             { key: 'symbol', header: 'Symbol' },
                             {
-                                key: 'side', 
-                                header: 'Side', 
+                                key: 'side',
+                                header: 'Side',
                                 render: (row) => (
                                     <span className={row.side === 'buy' ? 'text-up' : 'text-down'}>
                                         {row.side?.toUpperCase() ?? '-'}
@@ -593,22 +593,22 @@ export function EnhancedPortfolioView() {
                             { key: 'type', header: 'Type', render: (row) => row.type?.toUpperCase() ?? '-' },
                             { key: 'qty', header: 'Qty', align: 'right' },
                             { key: 'filled_qty', header: 'Filled', align: 'right' },
-                            { 
-                                key: 'price', 
-                                header: 'Price', 
+                            {
+                                key: 'price',
+                                header: 'Price',
                                 align: 'right',
                                 render: (row) => row.price ? `$${row.price.toFixed(2)}` : '-'
                             },
                             {
-                                key: 'status', 
-                                header: 'Status', 
+                                key: 'status',
+                                header: 'Status',
                                 render: (row) => (
                                     <Badge
                                         variant={
-                                            row.status === 'filled' ? 'success' : 
-                                            row.status === 'pending' || row.status === 'partial' ? 'warning' :
-                                            row.status === 'rejected' || row.status === 'canceled' ? 'error' : 
-                                            'default'
+                                            row.status === 'filled' ? 'success' :
+                                                row.status === 'pending' || row.status === 'partial' ? 'warning' :
+                                                    row.status === 'rejected' || row.status === 'canceled' ? 'error' :
+                                                        'default'
                                         }
                                         size="sm"
                                     >

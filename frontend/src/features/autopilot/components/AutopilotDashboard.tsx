@@ -11,7 +11,6 @@ import { UniverseEditor } from './UniverseEditor';
 import { IncidentsPanel } from './IncidentsPanel';
 import { RunHistory } from './RunHistory';
 import { AutopilotAgents } from './AutopilotAgents';
-import { ChartCanvas } from '../../chart/ChartCanvas';
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-US', {
@@ -235,12 +234,6 @@ export const AutopilotDashboard: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Column: Positions & Stats (65%) */}
         <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
-
-          {/* Chart Section */}
-          <div className="h-[400px] border-b border-gray-700 relative">
-            <ChartCanvas />
-          </div>
-
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-4 gap-4 p-4 border-b border-gray-700 bg-gray-850">
             <div className="bg-gray-800 p-3 rounded">
