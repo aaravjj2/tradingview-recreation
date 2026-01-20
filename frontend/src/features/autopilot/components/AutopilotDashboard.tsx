@@ -5,6 +5,7 @@
 
 import React, { useEffect, useCallback } from 'react';
 import { useAutopilotStore } from '../store';
+import { AutopilotThinkLog } from './AutopilotThinkLog';
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-US', {
@@ -30,23 +31,25 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ state, killSwitch }) => {
       </span>
     );
   }
-  
+
   const colors: Record<string, string> = {
     idle: 'bg-gray-500',
     running: 'bg-green-500',
     paused: 'bg-yellow-500',
     error: 'bg-red-500',
   };
-  
+
+  const safeState = state || 'idle';
+
   return (
-    <span className={`px-3 py-1 text-sm font-semibold text-white rounded-full ${colors[state] || colors.idle}`}>
-      {state.toUpperCase()}
+    <span className={`px-3 py-1 text-sm font-semibold text-white rounded-full ${colors[safeState] || colors.idle}`}>
+      {safeState.toUpperCase()}
     </span>
   );
 };
 
 const PaperModeBanner: React.FC = () => (
-  <div 
+  <div
     className="w-full bg-amber-500 text-black text-center py-2 font-bold text-lg"
     data-testid="paper-mode-banner"
   >
@@ -67,7 +70,7 @@ const PortfolioCard: React.FC<PortfolioCardProps> = ({ title, value, subtitle, t
     down: 'text-red-400',
     neutral: 'text-gray-400',
   };
-  
+
   return (
     <div className="bg-gray-800 rounded-lg p-4 border border-gray-700" data-testid={`portfolio-card-${title.toLowerCase().replace(/\s/g, '-')}`}>
       <h3 className="text-gray-400 text-sm font-medium">{title}</h3>
@@ -96,18 +99,26 @@ export const AutopilotDashboard: React.FC = () => {
     pause,
     resume,
     clearError,
+    connect,
+    disconnect,
+    connectionStatus,
   } = useAutopilotStore();
+
+  useEffect(() => {
+    connect();
+    return () => disconnect();
+  }, [connect, disconnect]);
 
   useEffect(() => {
     fetchConfig();
     fetchStatus();
     fetchPositions('open');
-    
+
     // Poll status every 30 seconds
     const interval = setInterval(() => {
       fetchStatus();
     }, 30000);
-    
+
     return () => clearInterval(interval);
   }, [fetchConfig, fetchStatus, fetchPositions]);
 
@@ -139,14 +150,20 @@ export const AutopilotDashboard: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white" data-testid="autopilot-dashboard">
       <PaperModeBanner />
-      
+
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-700">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">🤖 AI Options Autopilot</h1>
           {status && <StatusBadge state={status.state} killSwitch={status.kill_switch} />}
+          <div className={`px-2 py-1 rounded-full text-xs font-bold ${connectionStatus === 'CONNECTED' ? 'bg-green-900 text-green-200 border border-green-700' :
+              connectionStatus === 'CONNECTING' ? 'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse' :
+                'bg-red-900 text-red-200 border border-red-700'
+            }`}>
+            WS: {connectionStatus}
+          </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <button
             onClick={handlePauseResume}
@@ -156,7 +173,7 @@ export const AutopilotDashboard: React.FC = () => {
           >
             {status?.state === 'paused' ? '▶️ Resume' : '⏸️ Pause'}
           </button>
-          
+
           <button
             onClick={handleRunCycle}
             disabled={isLoading || status?.kill_switch}
@@ -165,15 +182,14 @@ export const AutopilotDashboard: React.FC = () => {
           >
             {isLoading ? '⏳ Running...' : '🔄 Run Cycle'}
           </button>
-          
+
           <button
             onClick={handleKillSwitch}
             disabled={killSwitchPending}
-            className={`px-4 py-2 rounded font-medium transition-colors ${
-              status?.kill_switch 
-                ? 'bg-green-600 hover:bg-green-700' 
-                : 'bg-red-600 hover:bg-red-700'
-            }`}
+            className={`px-4 py-2 rounded font-medium transition-colors ${status?.kill_switch
+              ? 'bg-green-600 hover:bg-green-700'
+              : 'bg-red-600 hover:bg-red-700'
+              }`}
             data-testid="kill-switch-btn"
           >
             {status?.kill_switch ? '✅ Deactivate Kill Switch' : '🛑 Kill Switch'}
@@ -309,6 +325,11 @@ export const AutopilotDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Think Engine Log */}
+      <div className="px-4 pb-4">
+        <AutopilotThinkLog />
+      </div>
     </div>
   );
 };

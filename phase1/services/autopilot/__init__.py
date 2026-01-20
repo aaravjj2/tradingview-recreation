@@ -1,11 +1,20 @@
 """
-AI Options Autopilot - Paper Trading System
+AI Options Autopilot - Unified Trading System
 
-This module implements a fully automated options trading system operating
-in paper mode only. The system uses deterministic risk rules with optional
-LLM-based candidate ranking.
+This module implements a fully automated options trading system.
+Alpaca paper trading is the source of truth for positions and orders.
 
-Components:
+Architecture (v2):
+- unified_engine: The ONLY autopilot execution path (replaces runloop)
+- broker_position_manager: Position management with Alpaca as truth
+- news_provider: News/sentiment from Finnhub + yfinance
+- unified_router: The ONLY API router for autopilot
+
+Legacy (deprecated - DO NOT USE):
+- runloop: Old orchestration loop - REPLACED by unified_engine
+- unified_cycle: Intermediate implementation - REPLACED by unified_engine
+
+Active Components:
 - config: Autopilot configuration and budget management
 - universe: Liquid options universe management
 - features: Market feature computation (regime, IV, liquidity)
@@ -16,7 +25,6 @@ Components:
 - position_manager: Options position ledger with Greeks
 - monitor: Exit monitoring and risk management
 - reporting: Daily P&L and attribution reports
-- runloop: Main orchestration loop
 """
 
 from .config import (
@@ -86,17 +94,6 @@ from .reporting import (
     RunCycleLog,
     ActivityLogger,
 )
-from .runloop import (
-    AutopilotRunloop,
-    CycleResult,
-    RunloopState,
-)
-from .unified_cycle import (
-    UnifiedAutopilot,
-    CyclePhase,
-    CycleMetrics,
-    DecisionTrace,
-)
 from .trade_stream import (
     TradeUpdateType,
     TradeUpdate,
@@ -115,6 +112,33 @@ from .news_sentiment import (
     get_news_provider,
     get_sentiment_engine,
 )
+
+# NEW UNIFIED SYSTEM (v2)
+from .unified_engine import (
+    UnifiedAutopilotEngine,
+    get_unified_engine,
+    RunArtifact,
+    CyclePhase as UnifiedCyclePhase,
+    ExitReason,
+    ValidationGate,
+)
+from .broker_position_manager import (
+    BrokerPositionManager,
+    get_broker_position_manager,
+    BrokerExitRule,
+    BrokerPositionMeta,
+    EnrichedBrokerPosition,
+    ExitTrigger,
+    BrokerExitSignal,
+)
+from .news_provider import (
+    NewsProvider,
+    get_news_provider as get_news_provider_v2,
+    NewsItem,
+    SentimentSnapshot,
+    MarketSentiment,
+)
+from .unified_router import router as unified_autopilot_router
 
 __all__ = [
     # Config
@@ -178,15 +202,6 @@ __all__ = [
     'SymbolAttribution',
     'RunCycleLog',
     'ActivityLogger',
-    # Runloop
-    'AutopilotRunloop',
-    'CycleResult',
-    'RunloopState',
-    # Unified Cycle
-    'UnifiedAutopilot',
-    'CyclePhase',
-    'CycleMetrics',
-    'DecisionTrace',
     # Trade Stream
     'TradeUpdateType',
     'TradeUpdate',
@@ -203,4 +218,24 @@ __all__ = [
     'SentimentEngine',
     'get_news_provider',
     'get_sentiment_engine',
+    # NEW UNIFIED SYSTEM (v2)
+    'UnifiedAutopilotEngine',
+    'get_unified_engine',
+    'RunArtifact',
+    'UnifiedCyclePhase',
+    'ExitReason',
+    'ValidationGate',
+    'BrokerPositionManager',
+    'get_broker_position_manager',
+    'BrokerExitRule',
+    'BrokerPositionMeta',
+    'EnrichedBrokerPosition',
+    'ExitTrigger',
+    'BrokerExitSignal',
+    'NewsProvider',
+    'get_news_provider_v2',
+    'NewsItem',
+    'SentimentSnapshot',
+    'MarketSentiment',
+    'unified_autopilot_router',
 ]

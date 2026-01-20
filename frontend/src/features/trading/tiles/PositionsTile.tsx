@@ -37,22 +37,9 @@ export function PositionsTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
     const totalPL = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
 
     // Simulate updates
+    // Simulation removed as per P0.1
     useEffect(() => {
-        const interval = setInterval(() => {
-            setPositions(prev => prev.map(pos => {
-                const newPrice = pos.currentPrice * (1 + (Math.random() - 0.5) * 0.002);
-                const marketValue = pos.quantity * newPrice;
-                const unrealizedPL = marketValue - (pos.quantity * pos.avgCost);
-                return {
-                    ...pos,
-                    currentPrice: newPrice,
-                    marketValue,
-                    unrealizedPL,
-                    unrealizedPLPercent: (unrealizedPL / (pos.quantity * pos.avgCost)) * 100
-                };
-            }));
-        }, 2000);
-        return () => clearInterval(interval);
+        // No-op: Simulation disabled
     }, []);
 
     return (
@@ -77,7 +64,9 @@ export function PositionsTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
 
             {/* Header */}
             <div className="grid grid-cols-5 gap-2 px-3 py-2 text-xs text-text-muted border-b border-border">
-                <div>Symbol</div>
+                <div className="flex items-center gap-2">
+                    Symbol <span className="px-1 py-0.5 bg-yellow-900/50 text-yellow-500 rounded text-[10px] border border-yellow-800">MOCK DATA</span>
+                </div>
                 <div className="text-right">Qty</div>
                 <div className="text-right">Price</div>
                 <div className="text-right">Value</div>

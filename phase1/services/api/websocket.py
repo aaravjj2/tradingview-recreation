@@ -4,6 +4,7 @@ WebSocket handler for real-time bar streaming.
 
 import asyncio
 import json
+import time
 from typing import Dict, Set, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import structlog
@@ -31,6 +32,12 @@ class ConnectionManager:
         
         # Subscription index: {(symbol, timeframe): {websocket, ...}}
         self._subscriptions: Dict[tuple, Set[WebSocket]] = {}
+
+        # Heartbeat tracking
+        self._last_heartbeat: Dict[WebSocket, int] = {}
+        self._heartbeat_interval: float = 30.0
+        self._heartbeat_task: Optional[asyncio.Task] = None
+        self._running: bool = False
         
         self._lock = asyncio.Lock()
         self.logger = logger.bind(component="ws_manager")
@@ -40,7 +47,39 @@ class ConnectionManager:
         await websocket.accept()
         async with self._lock:
             self._connections[websocket] = set()
+            self._last_heartbeat[websocket] = int(time.time() * 1000)
         self.logger.info("ws_connected", client=id(websocket))
+
+    async def start(self) -> None:
+        """Start heartbeat loop for connections."""
+        if self._running:
+            return
+        self._running = True
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        self.logger.info("ws_heartbeat_started")
+
+    async def stop(self) -> None:
+        """Stop heartbeat loop and close all connections."""
+        self._running = False
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+
+        # Close all active connections
+        async with self._lock:
+            for ws in list(self._connections.keys()):
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+            self._connections.clear()
+            self._subscriptions.clear()
+            self._last_heartbeat.clear()
+
+        self.logger.info("ws_heartbeat_stopped")
     
     async def disconnect(self, websocket: WebSocket) -> None:
         """Handle WebSocket disconnection."""
@@ -53,6 +92,8 @@ class ConnectionManager:
                         if not self._subscriptions[key]:
                             del self._subscriptions[key]
                 del self._connections[websocket]
+            # Remove heartbeat tracking
+            self._last_heartbeat.pop(websocket, None)
         self.logger.info("ws_disconnected", client=id(websocket))
     
     async def subscribe(
@@ -130,12 +171,55 @@ class ConnectionManager:
         try:
             await websocket.send_json(message)
         except Exception as e:
-            self.logger.warning("ws_send_error", error=str(e))
+            err = str(e)
+            if 'Cannot call "send" once a close message has been sent' in err:
+                self.logger.debug("ws_send_error_closed", error=err)
+            else:
+                self.logger.warning("ws_send_error", error=err)
+            # Best-effort disconnect
+            try:
+                await self.disconnect(websocket)
+            except Exception:
+                pass
     
     @property
     def connection_count(self) -> int:
         """Get number of active connections."""
         return len(self._connections)
+
+    async def _heartbeat_loop(self) -> None:
+        """Periodically send heartbeats and prune stale connections."""
+        while self._running:
+            try:
+                await asyncio.sleep(self._heartbeat_interval)
+                await self._send_heartbeats()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error("heartbeat_error", error=str(e))
+
+    async def _send_heartbeats(self) -> None:
+        """Send heartbeat to all connected clients and drop stale ones."""
+        now = int(time.time() * 1000)
+        timeout_ms = int(self._heartbeat_interval * 2000)  # 2x interval
+        to_disconnect = []
+
+        async with self._lock:
+            clients = list(self._connections.keys())
+
+        for websocket in clients:
+            try:
+                await self.send_personal(websocket, {"type": "HEARTBEAT", "timestamp": now})
+                # If client hasn't updated heartbeat in a while, mark for disconnect
+                last = self._last_heartbeat.get(websocket, 0)
+                if last and (now - last) > timeout_ms:
+                    self.logger.warning("ws_heartbeat_timeout", client=id(websocket))
+                    to_disconnect.append(websocket)
+            except Exception:
+                to_disconnect.append(websocket)
+
+        for ws in to_disconnect:
+            await self.disconnect(ws)
     
     @property
     def subscription_count(self) -> int:
@@ -160,42 +244,64 @@ async def websocket_bars(
 ):
     """
     WebSocket endpoint for bar streaming.
-    
+
     Connects and automatically subscribes to the specified symbol/timeframe.
     
     Messages sent:
     - BAR_FORMING: On each tick update
     - BAR_CONFIRMED: When bar is locked
-    
+
     Messages received:
     - {"action": "subscribe", "symbol": "...", "timeframe": "..."}
     - {"action": "unsubscribe", "symbol": "...", "timeframe": "..."}
     - {"action": "ping"}
     """
-    await manager.connect(websocket)
-    
+    try:
+        await manager.connect(websocket)
+    except Exception as e:
+        logger.error("ws_connect_failed", error=str(e), symbol=symbol, timeframe=timeframe)
+        try:
+            await websocket.close(code=1011)
+        except Exception:
+            pass
+        return
+
+    logger.info("ws_client_connected", symbol=symbol, timeframe=timeframe, client=id(websocket))
+
     try:
         # Auto-subscribe to requested symbol/timeframe
-        await manager.subscribe(websocket, symbol, timeframe)
+        try:
+            await manager.subscribe(websocket, symbol, timeframe)
+        except Exception as e:
+            logger.error("ws_subscribe_failed", error=str(e), symbol=symbol, timeframe=timeframe)
+            await manager.send_personal(websocket, {"type": "ERROR", "message": "subscription failed"})
+            return
         
         # Send confirmation
-        await manager.send_personal(websocket, {
-            "type": "SUBSCRIBED",
-            "symbol": symbol.upper(),
-            "timeframe": timeframe,
-        })
+        try:
+            await manager.send_personal(websocket, {
+                "type": "SUBSCRIBED",
+                "symbol": symbol.upper(),
+                "timeframe": timeframe,
+            })
+        except Exception as e:
+            logger.error("ws_send_subscribed_failed", error=str(e), symbol=symbol, timeframe=timeframe)
+            # If we can't send initial confirmation, disconnect
+            await manager.disconnect(websocket)
+            return
 
-        # Send recent history (Backfill) using tiered store (cache preferred)
-        # Offload the potentially long-running history send to a background task
+        # Send recent history (Backfill) - defensive and logged
         async def _send_history_task():
+            logger.info("ws_history_task_start", symbol=symbol, timeframe=timeframe)
             try:
-                from ..persistence.repository import BarRepository
-                from ..persistence.cache import TieredBarStore, BarCache
-
-                repo = BarRepository()
-                store = TieredBarStore(cache=BarCache(), repository=repo)
-
-                recent = await store.get_recent_bars(symbol.upper(), timeframe, count=1000)
+                # Get bar storage - try bar_engine.state first, then fallback
+                try:
+                    from ..bar_engine.state import get_state
+                    store = get_state()
+                    recent = await store.get_recent_bars(symbol.upper(), timeframe, count=100)
+                except Exception as exc:
+                    recent = []
+                    logger.warning("ws_history_fallback", symbol=symbol, reason=str(exc))
 
                 # Send history in chronological order (oldest -> newest)
                 if recent:
@@ -205,43 +311,32 @@ async def websocket_bars(
                             await manager.send_personal(websocket, msg.model_dump())
                         except Exception as e:
                             logger.warning("ws_send_history_item_failed", error=str(e))
+                            # Stop sending if sends start failing
+                            break
 
-                # After sending recent bars, ensure we also send the canonical latest bar
-                try:
-                    latest_bar = await store.get_latest_bar(symbol.upper(), timeframe)
-                    if latest_bar and (len(recent) == 0 or latest_bar.ts_start_ms > (recent[-1].ts_start_ms if recent else 0)):
-                        try:
-                            latest_msg = BarMessage.from_bar(latest_bar)
-                            await manager.send_personal(websocket, latest_msg.model_dump())
-                            logger.info("ws_sent_latest_bar", symbol=symbol, bar_index=latest_bar.bar_index)
-                        except Exception as e:
-                            logger.warning("ws_send_latest_failed", error=str(e))
-                except Exception:
-                    # Non-fatal - continue
-                    pass
-
-                logger.info("ws_sent_history", symbol=symbol, count=len(recent))
+                logger.info("ws_sent_history", symbol=symbol, count=len(recent) if recent else 0)
             except Exception as e:
-                logger.error("ws_history_send_error", error=str(e))
+                logger.exception("ws_history_send_error", error=str(e))
+            finally:
+                logger.info("ws_history_task_end", symbol=symbol, timeframe=timeframe)
 
-        # Schedule history send in background so handshake and other clients aren't blocked
-        try:
-            asyncio.create_task(_send_history_task())
-        except Exception as e:
-            logger.error("ws_schedule_history_failed", error=str(e))
-        
+        # Send history immediately after connection (don't wait)
+        asyncio.create_task(_send_history_task())
+
         # Listen for messages
         while True:
             try:
                 data = await websocket.receive_text()
                 await handle_client_message(websocket, data)
             except WebSocketDisconnect:
+                logger.info("ws_client_disconnected", symbol=symbol, timeframe=timeframe, client=id(websocket))
                 break
             except Exception as e:
-                logger.error("ws_receive_error", error=str(e))
+                logger.exception("ws_receive_error", error=str(e), symbol=symbol, timeframe=timeframe)
                 break
     finally:
         await manager.disconnect(websocket)
+        logger.info("ws_cleanup_complete", symbol=symbol, timeframe=timeframe, client=id(websocket))
 
 
 async def handle_client_message(websocket: WebSocket, data: str) -> None:
@@ -273,6 +368,11 @@ async def handle_client_message(websocket: WebSocket, data: str) -> None:
                 })
         
         elif action == "ping":
+            # Update heartbeat timestamp for this connection
+            try:
+                manager._last_heartbeat[websocket] = int(time.time() * 1000)
+            except Exception:
+                pass
             await manager.send_personal(websocket, {"type": "PONG"})
         
         else:

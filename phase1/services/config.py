@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # Tiingo (for yfinance fallback)
     tiingo_api_key: Optional[str] = Field(default=None)
     
+    # Tradier (options data and streaming)
+    tradier_brokerage_key: Optional[str] = Field(default=None)
+    tradier_sandbox_key: Optional[str] = Field(default=None)
+    tradier_stream_enabled: bool = Field(default=True)
+    options_data_provider: str = Field(default="tradier")
+    options_stream_provider: str = Field(default="tradier")
+    
     # Ingestion
     ingestion_mode: Literal["mock", "live"] = Field(default="live")
     ingestion_symbols: str = Field(default="AAPL,MSFT")

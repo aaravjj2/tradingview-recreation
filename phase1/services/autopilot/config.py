@@ -35,15 +35,9 @@ class StrategyTemplate(str, Enum):
 
 
 # Default liquid universe
+# Default liquid universe
 DEFAULT_UNIVERSE = [
-    # Mega-cap tech
-    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "INTC", "PLTR",
-    # Core ETFs
-    "SPY", "QQQ",
-    # Sector ETFs
-    "XLK", "SMH", "XLF", "XLE",
-    # Optional hedges (no bonds)
-    "GLD", "PPLT", "SLV",
+    "AAPL", "SPY", "MSFT", "GLD", "SLV"
 ]
 
 # Universe clusters for concentration limits
@@ -64,7 +58,7 @@ class RiskLimits:
     max_total_risk: float = 400.0  # 40% of equity
     max_daily_loss: float = 30.0  # 3% of equity
     max_open_positions: int = 10
-    max_positions_per_underlying: int = 2
+    max_positions_per_underlying: int = 1
     max_positions_per_cluster: int = 2
     max_cluster_risk_pct: float = 0.6  # 60% max in any cluster
 
@@ -97,7 +91,7 @@ class EarningsPolicy:
 class ForecastSettings:
     """Settings for forecast influence on decisions."""
     enabled: bool = True
-    influence_weight: float = 0.3  # 0-1, how much forecast affects scoring
+    influence_weight: float = 0.5  # 0-1, how much forecast affects scoring
     min_confidence: float = 0.4  # Minimum confidence to use forecast
     auto_downweight_on_miscalibration: bool = True
 
@@ -114,8 +108,8 @@ class LLMMode(str, Enum):
 @dataclass
 class LLMSettings:
     """Settings for optional LLM ranking."""
-    enabled: bool = False
-    mode: LLMMode = LLMMode.DETERMINISTIC
+    enabled: bool = True
+    mode: LLMMode = LLMMode.HYBRID
     groq_model: Optional[str] = None  # Defaults to groq/compound
     gemini_model: Optional[str] = None  # Defaults to gemini-1.5-flash
     endpoint_url: Optional[str] = None  # For custom HTTP endpoints
@@ -130,9 +124,21 @@ class AutopilotConfig:
     mode: AutopilotMode = AutopilotMode.PAPER
     auto_execute: bool = True  # Auto-execute paper trades
     enable_alpaca: bool = True  # Enable mirroring trades to Alpaca
+
+    # Continuous run control
+    continuous_run: bool = True  # Keep running cycles until stopped
+
+    # Focus controls (single underlying)
+    focus_symbol: Optional[str] = None  # If set, only trade this underlying
+    max_symbols_per_cycle: int = 5  # Evaluate top 5 symbols per cycle
+    contracts_per_trade: int = 10  # Fixed contracts per trade
+    weekly_expiry_only: bool = True  # Prefer weekly expiry options
     
     # Budget (paper equity)
-    paper_equity: float = 1000.0
+    paper_equity: float = 100000.0
+    
+    # Feature Flags
+    enable_finbert: bool = False
     
     # Risk limits
     risk_limits: RiskLimits = field(default_factory=RiskLimits)
@@ -168,6 +174,11 @@ class AutopilotConfig:
             "mode": self.mode.value,
             "auto_execute": self.auto_execute,
             "paper_equity": self.paper_equity,
+            "continuous_run": self.continuous_run,
+            "focus_symbol": self.focus_symbol,
+            "max_symbols_per_cycle": self.max_symbols_per_cycle,
+            "contracts_per_trade": self.contracts_per_trade,
+            "weekly_expiry_only": self.weekly_expiry_only,
             "risk_limits": {
                 "max_risk_per_trade": self.risk_limits.max_risk_per_trade,
                 "max_total_risk": self.risk_limits.max_total_risk,
@@ -219,6 +230,18 @@ class AutopilotConfig:
             config.auto_execute = data["auto_execute"]
         if "paper_equity" in data:
             config.paper_equity = float(data["paper_equity"])
+
+        if "continuous_run" in data:
+            config.continuous_run = bool(data["continuous_run"])
+        if "focus_symbol" in data:
+            focus = data["focus_symbol"]
+            config.focus_symbol = focus.upper() if isinstance(focus, str) and focus.strip() else None
+        if "max_symbols_per_cycle" in data:
+            config.max_symbols_per_cycle = int(data["max_symbols_per_cycle"])
+        if "contracts_per_trade" in data:
+            config.contracts_per_trade = int(data["contracts_per_trade"])
+        if "weekly_expiry_only" in data:
+            config.weekly_expiry_only = bool(data["weekly_expiry_only"])
         
         if "risk_limits" in data:
             rl = data["risk_limits"]

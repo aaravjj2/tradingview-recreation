@@ -44,15 +44,9 @@ export function WatchlistTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
     );
 
     // Simulate real-time updates
+    // Simulation removed as per P0.1
     useEffect(() => {
-        const interval = setInterval(() => {
-            setWatchlist(prev => prev.map(item => ({
-                ...item,
-                price: item.price * (1 + (Math.random() - 0.5) * 0.002),
-                change: item.change + (Math.random() - 0.5) * 0.1,
-            })));
-        }, 2000);
-        return () => clearInterval(interval);
+        // No-op: Simulation disabled
     }, []);
 
     return (
@@ -73,7 +67,9 @@ export function WatchlistTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
 
             {/* Header */}
             <div className="grid grid-cols-4 gap-2 px-3 py-2 text-xs text-text-muted border-b border-border bg-element-bg/50">
-                <div>Symbol</div>
+                <div className="flex items-center gap-2">
+                    Symbol <span className="px-1 py-0.5 bg-yellow-900/50 text-yellow-500 rounded text-[10px] border border-yellow-800">MOCK DATA</span>
+                </div>
                 <div className="text-right">Price</div>
                 <div className="text-right">Change</div>
                 <div className="text-right">Volume</div>

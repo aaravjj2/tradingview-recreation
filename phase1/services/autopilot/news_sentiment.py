@@ -162,7 +162,10 @@ class FinnhubNewsProvider:
     BASE_URL = "https://finnhub.io/api/v1"
     
     def __init__(self, api_key: Optional[str] = None):
-        self._api_key = api_key or os.environ.get("FINNHUB_API_KEY", "")
+        # Try primary key, fallback to secondary
+        self._api_key = api_key or os.environ.get("FINNHUB_API_KEY", "") or os.environ.get("FINNHUB2_API_KEY", "")
+        self._backup_key = os.environ.get("FINNHUB2_API_KEY", "")
+        self._use_backup = False
         self._cache: Dict[str, Tuple[datetime, Any]] = {}
         self._cache_ttl = timedelta(minutes=5)
     
@@ -619,9 +622,227 @@ class SentimentEngine:
         )
 
 
+class EnsembleSentimentEngine:
+    """
+    Ensemble Sentiment Engine combining multiple models:
+    - Finnhub API sentiment (fast, API-based)
+    - FinBERT (local ML model - financial BERT)
+    - FinGPT (local/API ML model - financial GPT)
+    
+    Provides weighted ensemble scoring for more robust sentiment analysis.
+    """
+    
+    # Default weights for ensemble
+    DEFAULT_WEIGHTS = {
+        "finnhub": 0.30,
+        "finbert": 0.40,
+        "fingpt": 0.30,
+    }
+    
+    def __init__(
+        self,
+        news_provider: Optional[FinnhubNewsProvider] = None,
+        weights: Optional[Dict[str, float]] = None,
+    ):
+        """
+        Initialize ensemble sentiment engine.
+        
+        Args:
+            news_provider: Finnhub news provider for API sentiment
+            weights: Custom weights for ensemble (must sum to 1.0)
+        """
+        self._news_provider = news_provider or FinnhubNewsProvider()
+        self._base_engine = SentimentEngine(self._news_provider)
+        self._weights = weights or self.DEFAULT_WEIGHTS.copy()
+        
+        # Lazy-load ML providers
+        self._finbert = None
+        self._fingpt = None
+        self._providers_loaded = False
+        
+        # Cache
+        self._sentiment_cache: Dict[str, Tuple[datetime, SentimentScore]] = {}
+        self._cache_ttl = timedelta(minutes=10)
+    
+    def _ensure_providers(self):
+        """Lazy load ML providers."""
+        if self._providers_loaded:
+            return
+        
+        self._providers_loaded = True
+        
+        try:
+            from .finbert_provider import get_finbert_provider
+            self._finbert = get_finbert_provider()
+            logger.info(f"FinBERT available: {self._finbert.is_available}")
+        except Exception as e:
+            logger.warning(f"FinBERT load failed: {e}")
+            self._finbert = None
+        
+        try:
+            from .fingpt_provider import get_fingpt_provider
+            self._fingpt = get_fingpt_provider()
+            logger.info(f"FinGPT available: {self._fingpt.is_available if self._fingpt else False}")
+        except Exception as e:
+            logger.warning(f"FinGPT load failed: {e}")
+            self._fingpt = None
+    
+    async def get_ensemble_sentiment(
+        self,
+        symbol: str,
+        headlines: Optional[List[str]] = None,
+    ) -> SentimentScore:
+        """
+        Get ensemble sentiment combining all available models.
+        
+        Args:
+            symbol: Stock symbol
+            headlines: Optional headlines to analyze (fetched if not provided)
+            
+        Returns:
+            Combined SentimentScore
+        """
+        # Check cache
+        cache_key = f"ensemble_{symbol}"
+        if cache_key in self._sentiment_cache:
+            cached_time, cached_score = self._sentiment_cache[cache_key]
+            if datetime.utcnow() - cached_time < self._cache_ttl:
+                return cached_score
+        
+        self._ensure_providers()
+        
+        scores: Dict[str, Tuple[float, float]] = {}  # provider -> (score, confidence)
+        
+        # 1. Get Finnhub API sentiment
+        try:
+            finnhub_sentiment = await self._base_engine.get_symbol_sentiment(symbol)
+            scores["finnhub"] = (
+                finnhub_sentiment.sentiment_score,
+                finnhub_sentiment.confidence,
+            )
+            logger.debug(f"Finnhub: {finnhub_sentiment.sentiment_score:.2f}")
+        except Exception as e:
+            logger.warning(f"Finnhub sentiment failed: {e}")
+        
+        # Get headlines for ML models if not provided
+        if headlines is None:
+            try:
+                articles = await self._news_provider.get_company_news(symbol)
+                headlines = [a.headline for a in articles[:10]]  # Limit to recent 10
+            except Exception as e:
+                logger.warning(f"Failed to fetch headlines: {e}")
+                headlines = []
+        
+        # 2. Get FinBERT sentiment (Feature Flagged)
+        from .config import get_autopilot_config
+        config = get_autopilot_config()
+        
+        if config.enable_finbert and self._finbert and self._finbert.is_available and headlines:
+            try:
+                finbert_analysis_results = self._finbert.analyze_batch(headlines)
+                valid_results = [r for r in finbert_analysis_results if r is not None]
+                
+                if valid_results:
+                    avg_score = sum(r.normalized_score for r in valid_results) / len(valid_results)
+                    avg_conf = sum(r.score for r in valid_results) / len(valid_results)
+                    scores["finbert"] = (avg_score, avg_conf)
+                    logger.debug(f"FinBERT: {avg_score:.2f} (conf: {avg_conf:.2f})")
+            except Exception as e:
+                logger.warning(f"FinBERT analysis failed: {e}")
+        
+        # 3. Get FinGPT sentiment
+        if self._fingpt and self._fingpt.is_available and headlines:
+            try:
+                fingpt_results = self._fingpt.analyze_batch(headlines[:5])  # Limit for speed
+                valid_results = [r for r in fingpt_results if r is not None]
+                
+                if valid_results:
+                    avg_score = sum(r.normalized_score for r in valid_results) / len(valid_results)
+                    avg_conf = sum(r.score for r in valid_results) / len(valid_results)
+                    scores["fingpt"] = (avg_score, avg_conf)
+                    logger.debug(f"FinGPT: {avg_score:.2f} (conf: {avg_conf:.2f})")
+            except Exception as e:
+                logger.warning(f"FinGPT analysis failed: {e}")
+        
+        # Combine scores with weights
+        final_score, total_weight, total_confidence = 0.0, 0.0, 0.0
+        
+        for provider, (score, confidence) in scores.items():
+            weight = self._weights.get(provider, 0.0)
+            # Weight by both configured weight and confidence
+            effective_weight = weight * confidence
+            final_score += score * effective_weight
+            total_weight += effective_weight
+            total_confidence += confidence * weight
+        
+        if total_weight > 0:
+            final_score = final_score / total_weight
+        else:
+            final_score = 0.0
+        
+        # Normalize confidence
+        total_confidence = min(total_confidence, 1.0)
+        
+        # Create result
+        if final_score >= 0.4:
+            bucket = SentimentBucket.VERY_BULLISH
+        elif final_score >= 0.1:
+            bucket = SentimentBucket.BULLISH
+        elif final_score > -0.1:
+            bucket = SentimentBucket.NEUTRAL
+        elif final_score > -0.4:
+            bucket = SentimentBucket.BEARISH
+        else:
+            bucket = SentimentBucket.VERY_BEARISH
+        
+        result = SentimentScore(
+            sentiment_score=final_score,
+            confidence=total_confidence,
+            bucket=bucket,
+            article_count=len(headlines) if headlines else 0,
+            positive_count=sum(1 for _, (s, _) in scores.items() if s > 0.1),
+            negative_count=sum(1 for _, (s, _) in scores.items() if s < -0.1),
+            neutral_count=sum(1 for _, (s, _) in scores.items() if -0.1 <= s <= 0.1),
+            recency_weight=1.0,
+        )
+        
+        # Cache result
+        self._sentiment_cache[cache_key] = (datetime.utcnow(), result)
+        
+        logger.info(
+            f"Ensemble sentiment for {symbol}: {final_score:.2f} "
+            f"(sources: {list(scores.keys())}, conf: {total_confidence:.2f})"
+        )
+        
+        return result
+    
+    def get_provider_status(self) -> Dict[str, Any]:
+        """Get status of all sentiment providers."""
+        self._ensure_providers()
+        
+        return {
+            "finnhub": {
+                "available": self._news_provider.is_available,
+                "weight": self._weights.get("finnhub", 0),
+            },
+            "finbert": {
+                "available": self._finbert.is_available if self._finbert else False,
+                "weight": self._weights.get("finbert", 0),
+                "health": self._finbert.health_check() if self._finbert else None,
+            },
+            "fingpt": {
+                "available": self._fingpt.is_available if self._fingpt else False,
+                "weight": self._weights.get("fingpt", 0),
+                "health": self._fingpt.health_check() if self._fingpt else None,
+            },
+            "ensemble_weights": self._weights,
+        }
+
+
 # Global instances
 _news_provider: Optional[FinnhubNewsProvider] = None
 _sentiment_engine: Optional[SentimentEngine] = None
+_ensemble_engine: Optional[EnsembleSentimentEngine] = None
 
 
 def get_news_provider() -> FinnhubNewsProvider:
@@ -633,8 +854,17 @@ def get_news_provider() -> FinnhubNewsProvider:
 
 
 def get_sentiment_engine() -> SentimentEngine:
-    """Get or create global sentiment engine."""
+    """Get or create global sentiment engine (basic)."""
     global _sentiment_engine
     if _sentiment_engine is None:
         _sentiment_engine = SentimentEngine(get_news_provider())
     return _sentiment_engine
+
+
+def get_ensemble_sentiment_engine() -> EnsembleSentimentEngine:
+    """Get or create global ensemble sentiment engine (FinBERT + FinGPT)."""
+    global _ensemble_engine
+    if _ensemble_engine is None:
+        _ensemble_engine = EnsembleSentimentEngine(get_news_provider())
+    return _ensemble_engine
+

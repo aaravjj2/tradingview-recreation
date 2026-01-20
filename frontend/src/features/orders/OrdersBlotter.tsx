@@ -204,7 +204,7 @@ export function OrdersBlotter({ embedded }: { embedded?: boolean }) {
                                     >
                                         <td className="p-2 text-gray-400">{formatTime(order.submitted_at)}</td>
                                         <td className="p-2 font-medium text-gray-200">{order.symbol}</td>
-                                        <td className={`p-2 font-medium ${getSideColor(order.side)}`}>{order.side.toUpperCase()}</td>
+                                        <td className={`p-2 font-medium ${getSideColor(order.side)}`}>{order.side?.toUpperCase() ?? '-'}</td>
                                         <td className="p-2 text-gray-400">{order.order_type}</td>
                                         <td className="p-2 text-right text-gray-300">{order.quantity}</td>
                                         <td className="p-2 text-right text-gray-300">{order.filled_qty}</td>

@@ -250,11 +250,13 @@ export function UnifiedDashboardView() {
     const runAutopilotNow = async () => {
         setLoading(true);
         try {
-            await fetch(`${API_BASE}/autopilot/run`, {
+            const response = await fetch(`${API_BASE}/autopilot/cycle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ force: false })
+                body: JSON.stringify({ dry_run: false, force: false })
             });
+            const result = await response.json();
+            console.log('Autopilot cycle result:', result);
             await Promise.all([fetchDailyStats(), fetchPositions(), fetchOrders(), fetchEventLog()]);
         } catch (err) {
             console.error('Failed to run autopilot:', err);
@@ -266,7 +268,7 @@ export function UnifiedDashboardView() {
     const runMonitoringNow = async () => {
         setLoading(true);
         try {
-            await fetch(`${API_BASE}/autopilot/run`, {
+            await fetch(`${API_BASE}/autopilot/cycle`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ force: true })
@@ -300,7 +302,7 @@ export function UnifiedDashboardView() {
             fetchPositions();
             fetchOrders();
             fetchEventLog();
-        }, 30000);
+        }, 60000); // Poll every 60s to reduce backend load
         return () => clearInterval(interval);
     }, [fetchDailyStats, fetchPositions, fetchOrders, fetchEventLog]);
 

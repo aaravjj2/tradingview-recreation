@@ -105,6 +105,7 @@ class TradierDataFetcher:
         self,
         symbol: str,
         expiry: Optional[date] = None,
+        weekly_only: bool = False,
     ) -> List[OptionQuote]:
         """Get options chain for symbol."""
         if not self.api_key:
@@ -113,7 +114,7 @@ class TradierDataFetcher:
         try:
             # Get expirations if not specified
             if expiry is None:
-                expiry = self._get_next_monthly_expiry()
+                expiry = self._get_next_weekly_expiry() if weekly_only else self._get_next_monthly_expiry()
             
             resp = requests.get(
                 f"{self.base_url}/markets/options/chains",
@@ -188,6 +189,14 @@ class TradierDataFetcher:
         third_friday = first_friday + timedelta(days=14)
         
         return third_friday
+
+    def _get_next_weekly_expiry(self) -> date:
+        """Get next weekly expiry (nearest upcoming Friday)."""
+        today = date.today()
+        days_ahead = (4 - today.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7
+        return today + timedelta(days=days_ahead)
 
 
 class YFinanceDataFetcher:
@@ -282,16 +291,25 @@ class MarketDataProvider:
         self,
         symbol: str,
         expiry: Optional[date] = None,
+        weekly_only: bool = False,
     ) -> List[OptionQuote]:
         """Get options chain from Tradier."""
         cache_key = f"chain_{symbol}_{expiry}"
         if self._is_cached(cache_key):
             return self._cache[cache_key]
         
-        chain = self.tradier.get_options_chain(symbol, expiry)
+        chain = self.tradier.get_options_chain(symbol, expiry, weekly_only=weekly_only)
         if chain:
             self._set_cache(cache_key, chain)
         return chain
+
+    def get_next_weekly_expiry(self) -> date:
+        """Get next weekly expiry date."""
+        return self.tradier._get_next_weekly_expiry()
+
+    def get_next_monthly_expiry(self) -> date:
+        """Get next monthly expiry date."""
+        return self.tradier._get_next_monthly_expiry()
     
     def get_historical_prices(self, symbol: str, period: str = "1mo") -> List[float]:
         """Get historical prices from yFinance."""

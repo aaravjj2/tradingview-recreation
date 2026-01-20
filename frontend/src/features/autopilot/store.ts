@@ -4,6 +4,8 @@
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { WebSocketClient } from '../../data/WebSocketClient';
+import type { WSConnectionState } from '../../data/WebSocketClient';
 import type {
   AutopilotConfig,
   AutopilotPosition,
@@ -12,8 +14,18 @@ import type {
   ActivityLogEntry,
   DailyReport,
   AutopilotStatus,
+
 } from './types';
 import { autopilotApi } from './api';
+
+// Defined here if not in types yet, or assume it will be
+interface ThinkLogEntry {
+  timestamp: string;
+  phase: string;
+  thought: string;
+  details?: Record<string, any>;
+  emoji?: string;
+}
 
 interface AutopilotStore {
   // State
@@ -22,16 +34,18 @@ interface AutopilotStore {
   status: AutopilotStatus | null;
   positions: AutopilotPosition[];
   portfolio: PortfolioState | null;
-  logs: ActivityLogEntry[];
+  logs: ActivityLogEntry[]; // This remains for historical API logs
+  thinkLog: ThinkLogEntry[]; // New real-time log
   lastCycle: CycleResult | null;
   dailyReport: DailyReport | null;
   reportMarkdown: string;
-  
+
   // UI state
   isLoading: boolean;
   error: string | null;
   killSwitchPending: boolean;
-  
+  connectionStatus: WSConnectionState;
+
   // Actions
   fetchConfig: () => Promise<void>;
   updateConfig: (update: Partial<AutopilotConfig>) => Promise<void>;
@@ -45,6 +59,11 @@ interface AutopilotStore {
   resume: () => Promise<void>;
   fetchDailyReport: (date?: string) => Promise<void>;
   clearError: () => void;
+
+  // WebSocket
+  ws: WebSocketClient | null;
+  connect: () => void;
+  disconnect: () => void;
 }
 
 export const useAutopilotStore = create<AutopilotStore>()(
@@ -56,12 +75,15 @@ export const useAutopilotStore = create<AutopilotStore>()(
     positions: [],
     portfolio: null,
     logs: [],
+    thinkLog: [],
     lastCycle: null,
     dailyReport: null,
     reportMarkdown: '',
     isLoading: false,
     error: null,
     killSwitchPending: false,
+    connectionStatus: 'DISCONNECTED',
+    ws: null,
 
     fetchConfig: async () => {
       set((state) => { state.isLoading = true; state.error = null; });
@@ -112,8 +134,8 @@ export const useAutopilotStore = create<AutopilotStore>()(
       try {
         const { positions, portfolio } = await autopilotApi.getPositions(status);
         set((state) => {
-          state.positions = positions;
-          state.portfolio = portfolio;
+          state.positions = positions ?? [];
+          state.portfolio = portfolio ?? null;
           state.isLoading = false;
         });
       } catch (err) {
@@ -129,7 +151,7 @@ export const useAutopilotStore = create<AutopilotStore>()(
       try {
         const { logs } = await autopilotApi.getLogs(options);
         set((state) => {
-          state.logs = logs;
+          state.logs = logs ?? [];
           state.isLoading = false;
         });
       } catch (err) {
@@ -230,5 +252,51 @@ export const useAutopilotStore = create<AutopilotStore>()(
     clearError: () => {
       set((state) => { state.error = null; });
     },
+
+    connect: () => {
+      if (get().ws) return;
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const url = `${protocol}//${host}/ws/autopilot`;
+
+      const ws = new WebSocketClient(url,
+        (msg: any) => {
+          set(state => {
+            if (msg.type === 'THINK_LOG') {
+              state.thinkLog.push(msg.data);
+              // Keep log bounded
+              if (state.thinkLog.length > 500) {
+                state.thinkLog = state.thinkLog.slice(-500);
+              }
+            } else if (msg.type === 'STATUS_UPDATE') {
+              if (state.status) {
+                // Determine running state from phase
+                // This is a simplification; status object is complex
+                // We might need to fetch full status or just patch phase
+              }
+            } else if (msg.type === 'CYCLE_COMPLETE') {
+              // Refresh data
+              get().fetchStatus();
+              get().fetchPositions('open');
+            }
+          });
+        },
+        (stateStr) => {
+          set(state => { state.connectionStatus = stateStr; });
+        }
+      );
+
+      set(state => { state.ws = ws; });
+      ws.connect();
+    },
+
+    disconnect: () => {
+      const { ws } = get();
+      if (ws) {
+        ws.disconnect();
+        set(state => { state.ws = null; });
+      }
+    }
   }))
 );

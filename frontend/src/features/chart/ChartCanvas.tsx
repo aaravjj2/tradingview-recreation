@@ -214,7 +214,7 @@ export const ChartCanvas = ({ className }: ChartCanvasProps) => {
     }, [activeIndicators]);
 
     return (
-        <div className={`w-full h-full relative ${className || ''}`}>
+        <div className={`w-full h-full relative ${className || ''}`} data-testid="chart-canvas">
             <ReplayControls />
             <Toolbar />
             <div ref={containerRef} className="w-full h-full" />

@@ -197,6 +197,36 @@ class FeatureEngine:
             forecast_20d=forecast_20d,
             data_quality=data_quality,
         )
+
+    async def get_features(self, symbol: str) -> Optional[SymbolFeatures]:
+        """Fetch market data and compute features for a symbol."""
+        try:
+            from .data_fetcher import get_data_provider
+
+            provider = get_data_provider()
+            prices = provider.get_historical_prices(symbol, period="1mo")
+            if not prices or len(prices) < 2:
+                return None
+
+            last_price = prices[-1]
+            # Approx current IV from options chain (weekly preferred)
+            chain = provider.get_options_chain(symbol, weekly_only=True)
+            current_iv = 0.30
+            if chain:
+                ivs = [o.implied_vol for o in chain if o.implied_vol]
+                if ivs:
+                    current_iv = sum(ivs) / len(ivs)
+
+            return self.compute_features(
+                symbol=symbol,
+                prices=prices,
+                current_iv=current_iv,
+                avg_spread_pct=0.05,
+                volume=1_000_000,
+            )
+        except Exception as e:
+            logger.warning(f"Feature compute failed for {symbol}: {e}")
+            return None
     
     def _compute_trend(
         self,

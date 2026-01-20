@@ -7,3 +7,5 @@ export { AutopilotPositions } from './AutopilotPositions';
 export { AutopilotActivity } from './AutopilotActivity';
 export { AutopilotSettings } from './AutopilotSettings';
 export { AutopilotProposals } from './AutopilotProposals';
+export { AutopilotThinkLog } from './AutopilotThinkLog';
+

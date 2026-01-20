@@ -38,12 +38,17 @@ export function TrustUX() {
     useEffect(() => {
         const fetchHealth = async () => {
             try {
+                // Fetch actual data sources from health endpoint
+                const healthRes = await fetch(`${API_BASE}/health`);
+                const healthData = await healthRes.json();
+                
+                // Check Alpaca keys from health endpoint
+                const alpacaConfigured = healthData.alpaca_configured || false;
+                const alpacaConnected = healthData.alpaca_connected || false;
+
                 // Get ingestion status
                 const ingestRes = await fetch(`${API_BASE}/api/v1/ingest/status`);
                 const ingestData = await ingestRes.json();
-
-                // Check Alpaca keys
-                const alpacaConfigured = ingestData.mode === 'live' && ingestData.provider === 'alpaca';
 
                 // Determine primary provider
                 let primaryProvider: ProviderName | null = null;
@@ -59,21 +64,44 @@ export function TrustUX() {
                         ? 'offline'
                         : 'degraded';
 
-                // Data sources
-                const dataSources: DataSource[] = [
-                    {
+                // Build data sources
+                let dataSources: DataSource[] = [];
+                try {
+                    
+                    // Bars source - use healthData values
+                    dataSources.push({
                         symbol,
-                        provider: alpacaConfigured ? 'Alpaca (LIVE)' : 'Mock CSV',
+                        provider: alpacaConnected ? 'Alpaca (LIVE)' : (alpacaConfigured ? 'Alpaca (configured)' : 'Mock CSV'),
                         type: 'bars',
-                        status: alpacaConfigured ? 'live' : 'cached',
-                    },
-                    {
-                        symbol: symbol,
-                        provider: 'yfinance',
+                        status: alpacaConnected ? 'live' : 'cached',
+                    });
+                    
+                    // Options source
+                    const optionsProvider = healthData.options_provider || 'yfinance';
+                    const optionsLive = healthData.tradier_connected || false;
+                    dataSources.push({
+                        symbol,
+                        provider: optionsProvider === 'tradier' ? 'Tradier' : 'yfinance',
                         type: 'options',
-                        status: 'cached',
-                    },
-                ];
+                        status: optionsLive ? 'live' : 'cached',
+                    });
+                } catch (e) {
+                    // Fallback to basic sources
+                    dataSources = [
+                        {
+                            symbol,
+                            provider: alpacaConfigured ? 'Alpaca' : 'Mock CSV',
+                            type: 'bars',
+                            status: alpacaConfigured ? 'live' : 'cached',
+                        },
+                        {
+                            symbol,
+                            provider: 'yfinance',
+                            type: 'options',
+                            status: 'cached',
+                        },
+                    ];
+                }
 
                 setMetrics({
                     mode,
@@ -90,7 +118,7 @@ export function TrustUX() {
         };
 
         fetchHealth();
-        const interval = setInterval(fetchHealth, 5000); // Poll every 5s
+        const interval = setInterval(fetchHealth, 15000); // Poll every 15s
         return () => clearInterval(interval);
     }, [mode, symbol, providers]);
 

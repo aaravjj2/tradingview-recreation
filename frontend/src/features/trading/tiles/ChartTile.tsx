@@ -105,6 +105,11 @@ export function ChartTile({ tileId: _tileId, isMaximized: _isMaximized }: TilePr
     }, []);
 
     return (
-        <div ref={containerRef} className="h-full w-full" />
+        <div className="relative h-full w-full">
+            <div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 bg-yellow-900/50 text-yellow-500 rounded text-[10px] border border-yellow-800 backdrop-blur-sm pointer-events-none">
+                MOCK CHART
+            </div>
+            <div ref={containerRef} className="h-full w-full" />
+        </div>
     );
 }

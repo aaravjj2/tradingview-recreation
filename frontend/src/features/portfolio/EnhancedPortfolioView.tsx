@@ -586,11 +586,11 @@ export function EnhancedPortfolioView() {
                                 header: 'Side', 
                                 render: (row) => (
                                     <span className={row.side === 'buy' ? 'text-up' : 'text-down'}>
-                                        {row.side.toUpperCase()}
+                                        {row.side?.toUpperCase() ?? '-'}
                                     </span>
                                 )
                             },
-                            { key: 'type', header: 'Type', render: (row) => row.type.toUpperCase() },
+                            { key: 'type', header: 'Type', render: (row) => row.type?.toUpperCase() ?? '-' },
                             { key: 'qty', header: 'Qty', align: 'right' },
                             { key: 'filled_qty', header: 'Filled', align: 'right' },
                             { 
@@ -612,7 +612,7 @@ export function EnhancedPortfolioView() {
                                         }
                                         size="sm"
                                     >
-                                        {row.status.toUpperCase()}
+                                        {row.status?.toUpperCase() ?? '-'}
                                     </Badge>
                                 )
                             },

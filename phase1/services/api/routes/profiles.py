@@ -19,7 +19,7 @@ router = APIRouter(tags=["Profiles"])
 async def get_volume_profile(
     symbol: str,
     timeframe: str = "1D",
-    profile_type: str = Query("visible_range", regex="^(visible_range|fixed_range|session|developing)$"),
+    profile_type: str = Query("visible_range", pattern="^(visible_range|fixed_range|session|developing)$"),
     num_rows: int = Query(24, ge=10, le=100),
     start_time: Optional[int] = None,
     end_time: Optional[int] = None,

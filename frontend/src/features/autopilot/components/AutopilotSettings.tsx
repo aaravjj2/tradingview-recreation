@@ -40,6 +40,11 @@ export const AutopilotSettings: React.FC = () => {
   const [llmEnabled, setLlmEnabled] = useState(false);
   const [forecastInfluence, setForecastInfluence] = useState(0.3);
   const [allowedTemplates, setAllowedTemplates] = useState<string[]>([]);
+  const [focusSymbol, setFocusSymbol] = useState('');
+  const [maxSymbolsPerCycle, setMaxSymbolsPerCycle] = useState(1);
+  const [contractsPerTrade, setContractsPerTrade] = useState(10);
+  const [continuousRun, setContinuousRun] = useState(true);
+  const [weeklyExpiryOnly, setWeeklyExpiryOnly] = useState(true);
   
   // Risk limits
   const [maxRiskPerTrade, setMaxRiskPerTrade] = useState(50);
@@ -61,10 +66,16 @@ export const AutopilotSettings: React.FC = () => {
   useEffect(() => {
     if (config) {
       setPaperEquity(config.paper_equity ?? 1000);
-      setMode(config.mode ?? 'auto');
+      const uiMode = config.mode === 'paused' ? 'manual' : 'auto';
+      setMode(uiMode as AutopilotMode);
       setLlmEnabled(config.llm_enabled ?? false);
       setForecastInfluence(config.forecast_influence ?? 0.3);
       setAllowedTemplates(config.allowed_templates ?? STRATEGY_TEMPLATES.map(t => t.id));
+      setFocusSymbol(config.focus_symbol ?? '');
+      setMaxSymbolsPerCycle(config.max_symbols_per_cycle ?? 1);
+      setContractsPerTrade(config.contracts_per_trade ?? 10);
+      setContinuousRun(config.continuous_run ?? true);
+      setWeeklyExpiryOnly(config.weekly_expiry_only ?? true);
       setMaxRiskPerTrade(config.risk_limits?.max_risk_per_trade ?? 50);
       setMaxTotalRisk(config.risk_limits?.max_total_risk ?? 400);
       setMaxDailyLoss(config.risk_limits?.max_daily_loss ?? 30);
@@ -87,12 +98,18 @@ export const AutopilotSettings: React.FC = () => {
   };
 
   const handleSave = async () => {
+    const backendMode = mode === 'manual' ? 'paused' : 'paper';
     await updateConfig({
       paper_equity: paperEquity,
-      mode,
+      mode: backendMode,
       llm_enabled: llmEnabled,
       forecast_influence: forecastInfluence,
       allowed_templates: allowedTemplates,
+      focus_symbol: focusSymbol || null,
+      max_symbols_per_cycle: maxSymbolsPerCycle,
+      contracts_per_trade: contractsPerTrade,
+      continuous_run: continuousRun,
+      weekly_expiry_only: weeklyExpiryOnly,
       risk_limits: {
         max_risk_per_trade: maxRiskPerTrade,
         max_total_risk: maxTotalRisk,
@@ -109,17 +126,23 @@ export const AutopilotSettings: React.FC = () => {
   const handleReset = () => {
     if (defaults) {
       setPaperEquity(defaults.paper_equity);
-      setMode(defaults.mode);
+      const uiMode = defaults.mode === 'paused' ? 'manual' : 'auto';
+      setMode(uiMode as AutopilotMode);
       setLlmEnabled(defaults.llm_enabled);
       setForecastInfluence(defaults.forecast_influence);
       setAllowedTemplates(defaults.allowed_templates);
+      setFocusSymbol(defaults.focus_symbol ?? '');
+      setMaxSymbolsPerCycle(defaults.max_symbols_per_cycle ?? 1);
+      setContractsPerTrade(defaults.contracts_per_trade ?? 10);
+      setContinuousRun(defaults.continuous_run ?? true);
+      setWeeklyExpiryOnly(defaults.weekly_expiry_only ?? true);
       setMaxRiskPerTrade(defaults.risk_limits.max_risk_per_trade);
       setMaxTotalRisk(defaults.risk_limits.max_total_risk);
       setMaxDailyLoss(defaults.risk_limits.max_daily_loss);
       setMaxOpenPositions(defaults.risk_limits.max_open_positions);
-      setMaxSymbolConcentration(defaults.risk_limits.max_symbol_concentration);
+      setMaxSymbolConcentration(defaults.risk_limits.max_symbol_concentration ?? 0.25);
       setMaxPositionsPerUnderlying(defaults.risk_limits.max_positions_per_underlying);
-      setMaxClusterConcentration(defaults.risk_limits.max_cluster_concentration);
+      setMaxClusterConcentration(defaults.risk_limits.max_cluster_concentration ?? 0.4);
       setIsDirty(true);
     }
   };
@@ -184,6 +207,80 @@ export const AutopilotSettings: React.FC = () => {
                 data-testid="paper-equity-input"
               />
             </div>
+          </SettingRow>
+
+          <SettingRow
+            label="Focus Symbol"
+            description="Only trade this underlying (leave blank for full universe)"
+          >
+            <input
+              type="text"
+              value={focusSymbol}
+              onChange={(e) => { setFocusSymbol(e.target.value.toUpperCase()); setIsDirty(true); }}
+              className="w-32 bg-gray-700 rounded px-3 py-2 font-mono uppercase"
+              placeholder="AAPL"
+              data-testid="focus-symbol-input"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Contracts Per Trade"
+            description="Fixed number of contracts per trade"
+          >
+            <input
+              type="number"
+              value={contractsPerTrade}
+              onChange={(e) => { setContractsPerTrade(Number(e.target.value)); setIsDirty(true); }}
+              className="w-20 bg-gray-700 rounded px-3 py-2 text-right font-mono"
+              min={1}
+              data-testid="contracts-per-trade"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Max Symbols Per Cycle"
+            description="Limit to a single underlying per cycle"
+          >
+            <input
+              type="number"
+              value={maxSymbolsPerCycle}
+              onChange={(e) => { setMaxSymbolsPerCycle(Number(e.target.value)); setIsDirty(true); }}
+              className="w-20 bg-gray-700 rounded px-3 py-2 text-right font-mono"
+              min={1}
+              data-testid="max-symbols-per-cycle"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Continuous Run"
+            description="Keep running cycles until stopped"
+          >
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={continuousRun}
+                onChange={(e) => { setContinuousRun(e.target.checked); setIsDirty(true); }}
+                className="w-5 h-5 rounded"
+                data-testid="continuous-run"
+              />
+              <span>{continuousRun ? 'Enabled' : 'Disabled'}</span>
+            </label>
+          </SettingRow>
+
+          <SettingRow
+            label="Weekly Expiry Only"
+            description="Prefer weekly options expirations"
+          >
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={weeklyExpiryOnly}
+                onChange={(e) => { setWeeklyExpiryOnly(e.target.checked); setIsDirty(true); }}
+                className="w-5 h-5 rounded"
+                data-testid="weekly-expiry-only"
+              />
+              <span>{weeklyExpiryOnly ? 'Enabled' : 'Disabled'}</span>
+            </label>
           </SettingRow>
 
           <SettingRow

@@ -324,38 +324,25 @@ async def _autopilot_paper_handler(
     - Position monitoring
     """
     from ..autopilot.config import AutopilotConfig, AutopilotMode
-    from ..autopilot.runloop import AutopilotRunloop
+    from ..autopilot.unified_engine import get_unified_engine
     
     logger.info(f"[autopilot_paper] Starting run {run_id} for strategy {strategy_id}")
     
     try:
-        # Create autopilot config from provided config dict
-        autopilot_config = AutopilotConfig(
-            paper_equity=config.get("paper_equity", 1000.0),
-            mode=AutopilotMode(config.get("mode", "paper")),
-            auto_execute=config.get("auto_execute", True),
-            llm_enabled=config.get("llm_enabled", False),
-            forecast_influence=config.get("forecast_influence", 0.3),
-        )
+        # Get the unified engine singleton (already configured)
+        engine = get_unified_engine()
         
-        # Initialize runloop
-        runloop = AutopilotRunloop(
-            config=autopilot_config,
-            data_provider=None,  # Uses mock data
-            llm_provider=None,   # Uses deterministic ranker
-        )
-        
-        # Run a single cycle
-        result = runloop.run_cycle()
+        # Run a single cycle using the unified engine
+        result = engine.run_cycle()
         
         # Report heartbeat
         orchestrator.heartbeat(run_id)
         
         # Log result
-        if result.success:
-            logger.info(f"[autopilot_paper] Cycle completed: {result.orders_filled} trades executed")
+        if result.get("success", False):
+            logger.info(f"[autopilot_paper] Cycle completed via UnifiedAutopilotEngine")
         else:
-            logger.warning(f"[autopilot_paper] Cycle failed: {result.error_message}")
+            logger.warning(f"[autopilot_paper] Cycle completed with issues: {result}")
         
     except Exception as e:
         logger.error(f"[autopilot_paper] Error in run {run_id}: {e}")

@@ -14,9 +14,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     Clock, Bell, Search, Power, Pause, Play, AlertTriangle,
-    CheckCircle2, XCircle, Activity, X, Loader2
+    CheckCircle2, XCircle, Activity, X, Loader2, Wifi, WifiOff, RefreshCw
 } from 'lucide-react';
 import { cn } from '../../../ui/utils';
+import { useStore } from '../../../state/store';
 
 const API_BASE = 'http://localhost:8000/api/v1';
 
@@ -72,6 +73,44 @@ export function TopAppBarEnhanced() {
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [marketTime, setMarketTime] = useState(new Date());
+    const [wsReconnecting, setWsReconnecting] = useState(false);
+
+    // WebSocket state from store
+    const wsState = useStore(state => state.wsState);
+    const forceReconnect = useStore(state => state.forceReconnect);
+
+    // Handle WS reconnect
+    const handleWsReconnect = async () => {
+        setWsReconnecting(true);
+        try {
+            forceReconnect();
+            // Give it a moment to reconnect
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        } finally {
+            setWsReconnecting(false);
+        }
+    };
+
+    // Get WS status color and icon
+    const getWsStatusColor = () => {
+        switch (wsState) {
+            case 'CONNECTED': return 'bg-green-500';
+            case 'CONNECTING': return 'bg-yellow-500';
+            case 'DEGRADED': return 'bg-yellow-500';
+            case 'DISCONNECTED': return 'bg-red-500';
+            default: return 'bg-gray-500';
+        }
+    };
+
+    const getWsStatusIcon = () => {
+        switch (wsState) {
+            case 'CONNECTED': return <Wifi size={14} className="text-green-400" />;
+            case 'CONNECTING': return <Loader2 size={14} className="text-yellow-400 animate-spin" />;
+            case 'DEGRADED': return <Wifi size={14} className="text-yellow-400" />;
+            case 'DISCONNECTED': return <WifiOff size={14} className="text-red-400" />;
+            default: return <WifiOff size={14} className="text-gray-400" />;
+        }
+    };
 
     // Fetch autopilot status
     const fetchAutopilotStatus = useCallback(async () => {
@@ -239,7 +278,7 @@ export function TopAppBarEnhanced() {
     // Health status polling
     useEffect(() => {
         fetchHealthStatuses();
-        const interval = setInterval(fetchHealthStatuses, 30000);
+        const interval = setInterval(fetchHealthStatuses, 60000); // Poll every 60s to reduce backend load
         return () => clearInterval(interval);
     }, [fetchHealthStatuses]);
 
@@ -281,7 +320,7 @@ export function TopAppBarEnhanced() {
     return (
         <header className="h-auto bg-panel-bg border-b border-border shrink-0 z-header">
             {/* PAPER MODE Banner */}
-            <div className="h-8 bg-amber-500/90 text-black flex items-center justify-center gap-2 text-sm font-bold" data-testid="paper-mode-banner">
+            <div className="h-8 bg-amber-500/90 text-black flex items-center justify-center gap-2 text-sm font-bold" data-testid="topbar-paper-mode-banner">
                 <AlertTriangle size={16} />
                 PAPER MODE — All trades are simulated
                 <AlertTriangle size={16} />
@@ -405,6 +444,47 @@ export function TopAppBarEnhanced() {
                                 <span className="text-text-secondary hidden xl:inline">{health.provider}</span>
                             </div>
                         ))}
+                    </div>
+
+                    <div className="h-4 w-px bg-border" />
+
+                    {/* WebSocket Status Pill */}
+                    <div className="flex items-center gap-2">
+                        <div 
+                            className={cn(
+                                "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs",
+                                wsState === 'CONNECTED' ? "bg-green-500/10 text-green-400" :
+                                wsState === 'CONNECTING' ? "bg-yellow-500/10 text-yellow-400" :
+                                wsState === 'DEGRADED' ? "bg-yellow-500/10 text-yellow-400" :
+                                "bg-red-500/10 text-red-400"
+                            )}
+                            data-testid="ws-status-pill"
+                            data-ws-status={wsState}
+                        >
+                            <div className={cn("w-2 h-2 rounded-full", getWsStatusColor())} />
+                            {getWsStatusIcon()}
+                            <span className="hidden lg:inline">{wsState}</span>
+                        </div>
+
+                        {/* WebSocket Reconnect Button */}
+                        <button
+                            onClick={handleWsReconnect}
+                            disabled={wsReconnecting || wsState === 'CONNECTING'}
+                            className={cn(
+                                "p-1.5 rounded hover:bg-element-bg transition-colors disabled:opacity-50",
+                                wsReconnecting && "animate-pulse"
+                            )}
+                            title="Force WebSocket Reconnect"
+                            data-testid="ws-reconnect-btn"
+                        >
+                            <RefreshCw 
+                                size={14} 
+                                className={cn(
+                                    "text-text-secondary",
+                                    wsReconnecting && "animate-spin"
+                                )} 
+                            />
+                        </button>
                     </div>
 
                     <div className="h-4 w-px bg-border" />

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Candle, WSMessage, Indicator, Drawing, ToolType, IndicatorType } from '../core/types.ts';
-import { WebSocketClient } from '../data/WebSocketClient.ts';
+import { WebSocketClient, type WSConnectionState } from '../data/WebSocketClient.ts';
 import { ClockClient, type ClockState } from '../data/ClockClient.ts';
 // Core indicator calculators
 import { 
@@ -49,6 +49,7 @@ interface AppState {
     candles: Candle[];
     lastCandle: Candle | null;
     wsClient: WebSocketClient | null;
+    wsState: WSConnectionState;
 
     // Replay State
     replayState: ClockState | null;
@@ -71,6 +72,8 @@ interface AppState {
     setTimeframe: (tf: string) => void;
     connect: () => void;
     disconnect: () => void;
+    forceReconnect: () => void;
+    getWsConnectionStats: () => { state: WSConnectionState; connected: boolean; reconnectAttempts: number; lastHeartbeat: number; timeSinceLastHeartbeat: number | null } | null;
 
     // Data helpers
     fetchLatestBar: (symbol?: string, timeframe?: string) => Promise<void>;
@@ -93,6 +96,7 @@ export const useStore = create<AppState>((set, get) => ({
     candles: [],
     lastCandle: null,
     wsClient: null,
+    wsState: 'DISCONNECTED' as WSConnectionState,
     replayState: null,
     activeIndicators: [],
     drawings: [],
@@ -140,7 +144,11 @@ export const useStore = create<AppState>((set, get) => ({
         const { symbol, timeframe } = get();
         const url = `ws://localhost:8000/ws/bars/${symbol}/${timeframe}`;
 
-        const client = new WebSocketClient(url, get().processMessage);
+        const onStateChange = (newState: WSConnectionState) => {
+            set({ wsState: newState });
+        };
+
+        const client = new WebSocketClient(url, get().processMessage, onStateChange);
         client.connect();
         set({ wsClient: client });
 
@@ -153,7 +161,25 @@ export const useStore = create<AppState>((set, get) => ({
         if (wsClient) {
             wsClient.disconnect();
         }
-        set({ wsClient: null });
+        set({ wsClient: null, wsState: 'DISCONNECTED' });
+    },
+
+    forceReconnect: () => {
+        const { wsClient } = get();
+        if (wsClient) {
+            wsClient.forceReconnect();
+        } else {
+            // No client exists, create new connection
+            get().connect();
+        }
+    },
+
+    getWsConnectionStats: () => {
+        const { wsClient } = get();
+        if (wsClient) {
+            return wsClient.getConnectionStats();
+        }
+        return null;
     },
 
     fetchClockState: async () => {

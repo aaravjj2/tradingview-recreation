@@ -52,8 +52,11 @@ class AlpacaOptionsBroker(PaperBroker):
     
     def _init_alpaca(self):
         """Initialize Alpaca client if credentials are available."""
-        api_key = os.environ.get("ALPACA3_KEY") or os.environ.get("APCA_API_KEY_ID")
-        api_secret = os.environ.get("ALPACA3_SECRET") or os.environ.get("APCA_API_SECRET_KEY")
+        from ..config import get_settings
+        settings = get_settings()
+
+        api_key = settings.apca_api_key_id or os.environ.get("APCA_API_KEY_ID")
+        api_secret = settings.apca_api_secret_key or os.environ.get("APCA_API_SECRET_KEY")
         
         if not api_key or not api_secret:
             logger.warning("Alpaca credentials not found - running in paper-only mode")
@@ -167,12 +170,16 @@ class AlpacaOptionsBroker(PaperBroker):
                     
                     side = OrderSide.BUY if leg.side == 'buy' else OrderSide.SELL
                     
+                    # Use client_order_id from candidate if available, otherwise generate one
+                    base_client_order_id = candidate.client_order_id if hasattr(candidate, 'client_order_id') and candidate.client_order_id else f"auto_{paper_order.order_id}"
+                    leg_client_order_id = f"{base_client_order_id}_{uuid.uuid4().hex[:6]}"
+
                     request = MarketOrderRequest(
                         symbol=occ_symbol,
                         qty=leg.quantity,
                         side=side,
                         time_in_force=TimeInForce.DAY,
-                        client_order_id=f"auto_{paper_order.order_id}_{uuid.uuid4().hex[:6]}"
+                        client_order_id=leg_client_order_id
                     )
                     
                     alpaca_order = self._alpaca_client.submit_order(request)

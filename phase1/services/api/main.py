@@ -19,10 +19,12 @@ import structlog
 
 from ..config import get_settings
 from ..persistence import init_database, get_database
-from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast, autopilot
+from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast
 from .websocket import router as ws_router
-from .autopilot_routes import router as autopilot_api_router
+from .health_router import router as health_router
 from .verification_routes import router as verification_router
+# UNIFIED AUTOPILOT ROUTER - This is the ONLY autopilot API
+from ..autopilot.unified_router import router as unified_autopilot_router
 
 
 logger = structlog.get_logger()
@@ -46,6 +48,8 @@ async def lifespan(app: FastAPI):
     try:
         autopilot_service = get_autopilot_service()
         await autopilot_service.start_background_loop(interval_seconds=60)
+        # Start continuous position monitoring (every 15 seconds)
+        await autopilot_service.start_monitoring_loop(interval_seconds=15)
     except Exception as e:
         logger.error(f"Failed to start autopilot service: {e}")
     
@@ -89,11 +93,55 @@ async def lifespan(app: FastAPI):
             
     except Exception as e:
         logger.error("ingestion_startup_failed", error=str(e))
+
+    # Start WebSocket manager heartbeat
+    try:
+        from .websocket import get_manager as get_ws_manager
+        ws_manager = get_ws_manager()
+        await ws_manager.start()
+        app.state.ws_manager = ws_manager
+        
+        # Start Autopilot WebSocket Manager
+        from .autopilot_websocket import get_autopilot_ws_manager
+        auto_ws = get_autopilot_ws_manager()
+        await auto_ws.start()
+        app.state.auto_ws = auto_ws
+    except Exception as e:
+        logger.error("ws_manager_start_failed", error=str(e))
+    
+    # Start health monitoring
+    try:
+        from ..monitoring.health import get_health_monitor
+        health_monitor = get_health_monitor()
+        await health_monitor.start_monitoring()
+        app.state.health_monitor = health_monitor
+    except Exception as e:
+        logger.error("health_monitor_start_failed", error=str(e))
     
     yield
     
     # Cleanup Ingestion
     await ingestion.stop()
+
+    # Stop health monitoring
+    try:
+        health_monitor = getattr(app.state, 'health_monitor', None)
+        if health_monitor:
+            await health_monitor.stop_monitoring()
+    except Exception as e:
+        logger.error("health_monitor_stop_failed", error=str(e))
+
+    # Stop WebSocket manager
+    try:
+        ws_manager = getattr(app.state, 'ws_manager', None)
+        if ws_manager:
+            await ws_manager.stop()
+        
+        auto_ws = getattr(app.state, 'auto_ws', None)
+        if auto_ws:
+            await auto_ws.stop()
+    except Exception as e:
+        logger.error("ws_manager_stop_failed", error=str(e))
     
     # Cleanup Autopilot
     await autopilot_service.stop_background_loop()
@@ -141,17 +189,18 @@ def create_app() -> FastAPI:
     app.include_router(incidents.router, prefix="/api/v1", tags=["incidents"])
     app.include_router(notes.router, prefix="/api/v1", tags=["notes"])
     app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
+    app.include_router(health_router, prefix="/api/v1", tags=["health"])
     app.include_router(options.router, prefix="/api/v1", tags=["options"])
     app.include_router(profiles.router, prefix="/api/v1/profiles", tags=["profiles"])
     app.include_router(patterns.router, prefix="/api/v1/patterns", tags=["patterns"])
     app.include_router(fundamentals.router, prefix="/api/v1/fundamentals", tags=["fundamentals"])
     app.include_router(automation.router, prefix="/api/v1", tags=["automation"])
     app.include_router(forecast.router, prefix="/api/v1", tags=["forecast"])
-    app.include_router(autopilot.router, prefix="/api/v1", tags=["autopilot"])
+    # UNIFIED AUTOPILOT ROUTER - This is the ONLY autopilot API
+    app.include_router(unified_autopilot_router, prefix="/api/v1", tags=["autopilot"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
-    
-    # New autopilot and verification routes
-    app.include_router(autopilot_api_router, tags=["autopilot-api"])
+    from .autopilot_websocket import router as autopilot_ws_router
+    app.include_router(autopilot_ws_router, prefix="/ws", tags=["autopilot-websocket"])
     app.include_router(verification_router, tags=["verification"])
     
     # Global exception handler
@@ -163,10 +212,40 @@ def create_app() -> FastAPI:
             content={"error": "Internal server error", "detail": str(exc)},
         )
     
-    # Health check
+    # Health check with data source status
     @app.get("/health")
     async def health_check():
-        return {"status": "healthy"}
+        settings = get_settings()
+        
+        # Check Alpaca connectivity
+        alpaca_connected = False
+        if settings.apca_api_key_id and settings.apca_api_secret_key:
+            try:
+                alpaca_connected = True
+            except Exception:
+                pass
+        
+        # Check Tradier connectivity
+        tradier_connected = False
+        if settings.tradier_brokerage_key:
+            try:
+                tradier_connected = True
+            except Exception:
+                pass
+        
+        # Determine options provider
+        options_provider = settings.options_data_provider if hasattr(settings, 'options_data_provider') else 'yfinance'
+        
+        return {
+            "status": "healthy",
+            "alpaca_configured": bool(settings.apca_api_key_id),
+            "alpaca_connected": alpaca_connected,
+            "tradier_configured": bool(settings.tradier_brokerage_key),
+            "tradier_connected": tradier_connected,
+            "options_provider": options_provider,
+            "bars_source": "alpaca" if alpaca_connected else "mock_csv",
+            "mode": "paper" if settings.apca_api_key_id else "mock",
+        }
     
     # Root endpoint
     @app.get("/")

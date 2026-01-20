@@ -83,12 +83,12 @@ test.describe('Left Navigation', () => {
     });
 
     test('should highlight active nav item', async ({ page }) => {
-        // Click Monitor and verify it's highlighted
-        const monitorNav = page.locator('button, a').filter({ hasText: 'Monitor' }).first();
-        if (await monitorNav.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await monitorNav.click();
-            // Check for active state (bg-brand or similar class)
-            await expect(monitorNav).toHaveClass(/brand|active|selected/);
+        // Click Chart nav item (monitor) and verify it's highlighted
+        const chartNav = page.getByTestId('nav-item-monitor');
+        if (await chartNav.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await chartNav.click();
+            // Check for active state - the parent container should have brand color
+            await expect(chartNav).toHaveClass(/bg-brand|text-brand/);
         }
     });
 

@@ -61,15 +61,19 @@ class TradeCandidate:
     template: StrategyTemplate
     legs: List[OptionLeg]
     underlying_price: float
-    max_loss: float  # Maximum risk
-    max_profit: float  # Maximum potential profit
-    pop: float  # Probability of profit (0-1)
-    dte: int  # Days to expiration
+    max_profit: float
+    max_loss: float
+    pop: float
+    dte: int
     iv_rank: float
     liquidity_score: float
     spread_percent: float
     regime: str
     trend: str
+    score: float = 0.0
+    adjusted_score: float = 0.0
+    rejection_reasons: List[str] = field(default_factory=list)
+    client_order_id: Optional[str] = None
     
     # Scoring
     base_score: float = 0.0
@@ -155,6 +159,97 @@ class CandidateGenerator:
         self.universe = universe_manager
         self.features = feature_engine
         self._candidate_counter = 0
+
+    async def generate(
+        self,
+        symbol: str,
+        features: SymbolFeatures,
+        weekly_only: bool = True,
+    ) -> List[TradeCandidate]:
+        """Generate candidates for a single symbol with weekly expiry focus."""
+        from .data_fetcher import get_data_provider
+
+        provider = get_data_provider()
+        expiry = provider.get_next_weekly_expiry() if weekly_only else provider.get_next_monthly_expiry()
+        chain = provider.get_options_chain(symbol, expiry=expiry, weekly_only=weekly_only)
+        if not chain:
+            return []
+
+        price = features.last_price
+        trend = features.trend
+
+        if trend == TrendDirection.BULLISH:
+            template = StrategyTemplate.PUT_CREDIT_SPREAD
+            option_type = "put"
+            direction = -1
+        elif trend == TrendDirection.BEARISH:
+            template = StrategyTemplate.CALL_CREDIT_SPREAD
+            option_type = "call"
+            direction = 1
+        else:
+            # Neutral fallback: choose credit spread based on IV
+            template = StrategyTemplate.PUT_CREDIT_SPREAD
+            option_type = "put"
+            direction = -1
+
+        # Find short leg near target delta
+        target_delta = 0.30
+        candidates = [
+            o for o in chain
+            if o.option_type == option_type
+            and o.delta != 0
+        ]
+        if option_type == "put":
+            candidates = [o for o in candidates if o.strike < price]
+        else:
+            candidates = [o for o in candidates if o.strike > price]
+
+        if not candidates:
+            return []
+
+        short_leg = min(candidates, key=lambda o: abs(abs(o.delta) - target_delta))
+
+        # Pick long leg 5 strikes away (or nearest)
+        width = max(1.0, self.config.strategy_constraints.min_spread_width)
+        long_strike = short_leg.strike + (direction * width)
+        long_leg_candidates = [o for o in candidates if o.expiry == short_leg.expiry]
+        if option_type == "put":
+            long_leg_candidates = [o for o in long_leg_candidates if o.strike < short_leg.strike]
+        else:
+            long_leg_candidates = [o for o in long_leg_candidates if o.strike > short_leg.strike]
+
+        if not long_leg_candidates:
+            return []
+
+        long_leg = min(long_leg_candidates, key=lambda o: abs(o.strike - long_strike))
+
+        credit = max(short_leg.bid - long_leg.ask, 0)
+        max_loss = max(abs(short_leg.strike - long_leg.strike) - credit, 0)
+
+        self._candidate_counter += 1
+        candidate = TradeCandidate(
+            id=f"cand-{symbol}-{self._candidate_counter}",
+            symbol=symbol,
+            template=template,
+            legs=[
+                OptionLeg(option_type=option_type, strike=short_leg.strike, expiry=short_leg.expiry, side="sell", quantity=1, premium=short_leg.bid, delta=short_leg.delta),
+                OptionLeg(option_type=option_type, strike=long_leg.strike, expiry=long_leg.expiry, side="buy", quantity=1, premium=long_leg.ask, delta=long_leg.delta),
+            ],
+            underlying_price=price,
+            max_loss=max_loss,
+            max_profit=credit,
+            pop=0.55,
+            dte=max((short_leg.expiry - date.today()).days, 1),
+            iv_rank=features.iv_rank,
+            liquidity_score=features.liquidity_score,
+            spread_percent=features.avg_spread_pct,
+            regime=features.vol_regime.value,
+            trend=features.trend.value,
+            base_score=features.liquidity_score + features.trend_strength,
+            adjusted_score=features.liquidity_score + features.trend_strength,
+        )
+
+        return [candidate]
     
     def generate_candidates(
         self,

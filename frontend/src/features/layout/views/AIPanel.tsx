@@ -690,9 +690,32 @@ export function AIPanel({ symbol: _symbol }: AIPanelProps) {
                             )}>
                                 {websocketStatus}
                             </span>
-                            {websocketStatus === 'polling' && (
-                                <span className="text-[10px] text-text-muted">Fallback active</span>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {websocketStatus === 'polling' && (
+                                    <span className="text-[10px] text-text-muted">Fallback active</span>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        // Trigger reconnect via API
+                                        fetch(`${API_BASE}/autopilot/reconnect`, { method: 'POST' })
+                                            .then(() => {
+                                                // Refetch status after reconnect attempt
+                                                setTimeout(fetchAlerts, 1000);
+                                            })
+                                            .catch(console.error);
+                                    }}
+                                    className={cn(
+                                        "px-2 py-1 rounded text-[10px] font-medium transition-colors",
+                                        websocketStatus === 'disconnected' 
+                                            ? "bg-brand text-white hover:bg-brand/80" 
+                                            : "bg-element-bg-lighter text-text-secondary hover:bg-border"
+                                    )}
+                                    data-testid="ws-reconnect-btn"
+                                >
+                                    <RefreshCw size={10} className="inline mr-1" />
+                                    {websocketStatus === 'disconnected' ? 'Reconnect Now' : 'Force Reconnect'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 

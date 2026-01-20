@@ -428,3 +428,36 @@ async def get_universe() -> Dict[str, Any]:
         "symbols": [s.to_dict() for s in symbols],
         "count": len(symbols),
     }
+
+
+@router.post("/autopilot/reconnect")
+async def reconnect_websocket() -> Dict[str, Any]:
+    """
+    Reconnect WebSocket connections.
+    
+    This endpoint triggers a reconnection attempt for all WebSocket
+    connections managed by the ingestion service.
+    """
+    try:
+        manager = get_manager()
+        # Get connection stats before
+        connections_before = manager.connection_count
+        subscriptions_before = manager.subscription_count
+        
+        # The manager will handle reconnection internally through heartbeat mechanism
+        # For immediate reconnection, we can restart the heartbeat loop
+        await manager.stop()
+        await manager.start()
+        
+        return {
+            "status": "reconnecting",
+            "connections_before": connections_before,
+            "subscriptions_before": subscriptions_before,
+            "message": "WebSocket manager restarted. Clients will reconnect automatically.",
+        }
+    except Exception as e:
+        logger.error("reconnect_failed", error=str(e))
+        return {
+            "status": "error",
+            "message": str(e),
+        }

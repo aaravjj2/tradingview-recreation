@@ -2,7 +2,7 @@
  * Autopilot Types
  */
 
-export type AutopilotMode = 'paper' | 'paused' | 'auto';
+export type AutopilotMode = 'paper' | 'paused' | 'auto' | 'semi' | 'manual';
 export type AutopilotState = 'idle' | 'running' | 'paused' | 'error';
 export type PositionStatus = 'open' | 'closed' | 'expired' | 'assigned';
 export type CandidateStatus = 'pending' | 'selected' | 'rejected' | 'executed';
@@ -13,18 +13,24 @@ export interface RiskLimits {
   max_daily_loss: number;
   max_open_positions: number;
   max_positions_per_underlying: number;
-  max_cluster_concentration: number;
-  max_symbol_concentration: number;
+  max_positions_per_cluster?: number;
+  max_cluster_risk_pct?: number;
+  max_cluster_concentration?: number;
+  max_symbol_concentration?: number;
 }
 
 export interface StrategyConstraints {
-  allowed_templates: string[];
+  allowed_templates?: string[];
   min_dte: number;
   max_dte: number;
-  min_iv_rank: number;
-  max_iv_rank: number;
-  min_liquidity_score: number;
-  max_spread_percent: number;
+  min_short_delta?: number;
+  max_short_delta?: number;
+  min_spread_width?: number;
+  max_spread_width?: number;
+  min_iv_rank?: number;
+  max_iv_rank?: number;
+  min_liquidity_score?: number;
+  max_spread_percent?: number;
 }
 
 export interface AutopilotConfig {
@@ -37,6 +43,11 @@ export interface AutopilotConfig {
   risk_limits: RiskLimits;
   strategy_constraints: StrategyConstraints;
   universe: string[];
+  focus_symbol?: string | null;
+  max_symbols_per_cycle?: number;
+  contracts_per_trade?: number;
+  continuous_run?: boolean;
+  weekly_expiry_only?: boolean;
   forecast_settings: {
     enabled: boolean;
     influence_level: number;

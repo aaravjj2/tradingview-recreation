@@ -51,6 +51,7 @@ export function ChartHeaderStrip() {
             <button
                 className="flex items-center gap-1.5 px-2 py-1 rounded text-text-secondary hover:text-text hover:bg-element-bg transition-colors"
                 onClick={() => setIsIndicatorsOpen(true)}
+                data-testid="indicators-btn"
             >
                 <TrendingUp size={14} />
                 <span className="text-xs">Indicators</span>

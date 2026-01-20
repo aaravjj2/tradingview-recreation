@@ -12,17 +12,68 @@ from enum import Enum
 router = APIRouter(tags=["Strategies"])
 
 
-# In-memory storage (would be database in production)
-_strategies: Dict[str, dict] = {}
-_running_strategies: Dict[str, Any] = {}
-
-
 class StrategyStatus(str, Enum):
     CREATED = "created"
     RUNNING = "running"
     PAUSED = "paused"
     STOPPED = "stopped"
     ERROR = "error"
+
+
+# In-memory storage (would be database in production)
+_strategies: Dict[str, dict] = {
+    "sample-mean-reversion": {
+        "id": "sample-mean-reversion",
+        "name": "Sample Mean Reversion",
+        "strategy_type": "standard",
+        "symbol": "AAPL",
+        "status": StrategyStatus.STOPPED.value,
+        "params": {},
+        "risk_limits": {},
+        "created_at": datetime.utcnow().isoformat(),
+    },
+    "sample-breakout": {
+        "id": "sample-breakout",
+        "name": "Sample Breakout",
+        "strategy_type": "standard",
+        "symbol": "TSLA",
+        "status": StrategyStatus.STOPPED.value,
+        "params": {},
+        "risk_limits": {},
+        "created_at": datetime.utcnow().isoformat(),
+    },
+    "rsi-oversold-bounce": {
+        "id": "rsi-oversold-bounce",
+        "name": "RSI Oversold Bounce",
+        "strategy_type": "mean_reversion",
+        "symbol": "MSFT",
+        "status": StrategyStatus.STOPPED.value,
+        "params": {"rsi_period": 14, "oversold_threshold": 30},
+        "risk_limits": {"max_position_size": 100},
+        "created_at": datetime.utcnow().isoformat(),
+    },
+    "momentum-breakout": {
+        "id": "momentum-breakout",
+        "name": "Momentum Breakout",
+        "strategy_type": "trend_following",
+        "symbol": "NVDA",
+        "status": StrategyStatus.STOPPED.value,
+        "params": {"lookback_period": 20, "breakout_threshold": 1.02},
+        "risk_limits": {"max_position_size": 50},
+        "created_at": datetime.utcnow().isoformat(),
+    },
+    "vwap-reversion": {
+        "id": "vwap-reversion",
+        "name": "VWAP Mean Reversion",
+        "strategy_type": "mean_reversion",
+        "symbol": "SPY",
+        "status": StrategyStatus.STOPPED.value,
+        "params": {"vwap_deviation": 0.5},
+        "risk_limits": {"max_position_size": 200},
+        "created_at": datetime.utcnow().isoformat(),
+    },
+}
+_running_strategies: Dict[str, Any] = {}
 
 
 class CreateStrategyRequest(BaseModel):

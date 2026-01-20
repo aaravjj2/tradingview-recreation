@@ -509,7 +509,7 @@ test.describe('Autopilot Feature', () => {
 
 test.describe('Autopilot Accessibility', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('http://localhost:5173');
+        await page.goto('/');  // Use baseURL from config
         await page.waitForLoadState('networkidle');
         await page.getByTestId('nav-item-autopilot').click();
         await page.waitForTimeout(500);

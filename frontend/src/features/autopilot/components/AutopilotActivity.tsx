@@ -96,7 +96,7 @@ const LogEntry: React.FC<LogEntryProps> = ({ entry }) => {
 type EventFilter = 'all' | 'trades' | 'validation' | 'errors';
 
 export const AutopilotActivity: React.FC = () => {
-  const { logs, isLoading, fetchLogs } = useAutopilotStore();
+  const { logs = [], isLoading, fetchLogs } = useAutopilotStore();
   const [filter, setFilter] = useState<EventFilter>('all');
   const [limit, setLimit] = useState(50);
 
@@ -122,7 +122,8 @@ export const AutopilotActivity: React.FC = () => {
   };
 
   // Group logs by date
-  const groupedLogs = logs.reduce<Record<string, ActivityLogEntry[]>>((acc, log) => {
+  const safeLogs = logs ?? [];
+  const groupedLogs = safeLogs.reduce<Record<string, ActivityLogEntry[]>>((acc, log) => {
     const date = formatDate(log.timestamp);
     if (!acc[date]) acc[date] = [];
     acc[date].push(log);

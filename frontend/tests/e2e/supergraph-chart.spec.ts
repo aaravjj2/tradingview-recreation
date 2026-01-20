@@ -154,8 +154,8 @@ test.describe('Dashboard with Supergraph', () => {
     });
 
     test('dashboard view loads', async ({ page }) => {
-        // Dashboard should have tiles
-        await expect(page.locator('text=/Dashboard|Watchlist|Positions|Orders/')).toBeVisible({ timeout: 10000 });
+        // Dashboard should have tiles - use .first() to avoid strict mode violation
+        await expect(page.locator('text=/Dashboard|Watchlist|Positions|Orders/').first()).toBeVisible({ timeout: 10000 });
     });
 
     test('dashboard displays grid layout', async ({ page }) => {

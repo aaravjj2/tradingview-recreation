@@ -10,12 +10,16 @@ test.describe('Indicator System', () => {
     await page.goto('/');
     // Wait for Shell to render - check for nav item which has data-testid
     await expect(page.getByTestId('nav-item-monitor')).toBeVisible({ timeout: 10000 });
+    
+    // Navigate to Monitor view which has the chart with Indicators button
+    await page.getByTestId('nav-item-monitor').click();
+    // Wait for the chart header strip to be visible
+    await page.waitForTimeout(500);
   });
 
   test('should open indicator library and add RSI', async ({ page }) => {
-    // 1. Open Indicator Library - look for button in chart header strip with text Indicators
-    const indicatorBtn = page.locator('button', { hasText: 'Indicators' }).first();
-    await indicatorBtn.click();
+    // 1. Open Indicator Library - use data-testid for reliability
+    await page.getByTestId('indicators-btn').click();
 
     // 2. Verify Modal Opens - wait for dialog
     const modal = page.getByRole('dialog');
@@ -42,8 +46,8 @@ test.describe('Indicator System', () => {
   });
 
   test('should add and remove SMA from library', async ({ page }) => {
-    // Open modal and add SMA
-    await page.locator('button', { hasText: 'Indicators' }).first().click();
+    // Open modal and add SMA using data-testid
+    await page.getByTestId('indicators-btn').click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
 
     await page.getByPlaceholder('Search...').fill('SMA');

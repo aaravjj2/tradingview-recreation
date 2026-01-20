@@ -24,8 +24,7 @@ from services.autopilot import (
     ExitReason,
     ReportGenerator,
     ActivityLogger,
-    AutopilotRunloop,
-    CycleResult,
+    # Note: AutopilotRunloop retired - use UnifiedAutopilotEngine
 )
 
 
@@ -55,7 +54,7 @@ class TestAutopilotConfig:
         
         assert "AAPL" in config.universe
         assert "SPY" in config.universe
-        assert len(config.universe) == 18
+        assert len(config.universe) == 5  # Default universe: AAPL, SPY, MSFT, GLD, SLV
 
 
 class TestUniverseManager:
@@ -115,43 +114,8 @@ class TestActivityLogger:
         assert entries[-1]["details"]["price"] == 150.0
 
 
-class TestAutopilotRunloop:
-    """Tests for AutopilotRunloop"""
-    
-    def test_runloop_creation(self):
-        """Test runloop can be created"""
-        config = AutopilotConfig()
-        # Use allowed_symbols list from config
-        runloop = AutopilotRunloop(config)
-        
-        assert runloop is not None
-        assert runloop.config == config
-        
-    def test_kill_switch(self):
-        """Test kill switch activation"""
-        config = AutopilotConfig()
-        runloop = AutopilotRunloop(config)
-        
-        assert runloop.validator.kill_switch_active is False
-        
-        runloop.activate_kill_switch()
-        assert runloop.validator.kill_switch_active is True
-        
-        runloop.deactivate_kill_switch()
-        assert runloop.validator.kill_switch_active is False
-        
-    def test_pause_resume(self):
-        """Test pause and resume"""
-        from services.autopilot.runloop import RunloopState
-        
-        config = AutopilotConfig()
-        runloop = AutopilotRunloop(config)
-        
-        runloop.pause()
-        assert runloop.state == RunloopState.PAUSED
-        
-        runloop.resume()
-        assert runloop.state == RunloopState.IDLE
+# Note: TestAutopilotRunloop removed - runloop is retired
+# Use UnifiedAutopilotEngine tests instead (see test_unified_engine.py)
 
 
 class TestStrategyTemplates:

@@ -164,7 +164,7 @@ const PositionDetails: React.FC<PositionDetailsProps> = ({ position }) => {
 type FilterStatus = 'all' | 'open' | 'closed';
 
 export const AutopilotPositions: React.FC = () => {
-  const { positions, isLoading, fetchPositions } = useAutopilotStore();
+  const { positions = [], isLoading, fetchPositions } = useAutopilotStore();
   const [filter, setFilter] = useState<FilterStatus>('open');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -184,8 +184,9 @@ export const AutopilotPositions: React.FC = () => {
     });
   };
 
-  const totalPnl = positions.reduce((sum, p) => sum + (p.unrealized_pnl ?? 0), 0);
-  const totalRisk = positions.reduce((sum, p) => sum + (p.max_risk ?? 0), 0);
+  const safePositions = positions ?? [];
+  const totalPnl = safePositions.reduce((sum, p) => sum + (p.unrealized_pnl ?? 0), 0);
+  const totalRisk = safePositions.reduce((sum, p) => sum + (p.max_risk ?? 0), 0);
 
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white" data-testid="autopilot-positions">
@@ -240,7 +241,7 @@ export const AutopilotPositions: React.FC = () => {
 
       {/* Positions Table */}
       <div className="flex-1 overflow-auto">
-        {positions.length === 0 ? (
+        {safePositions.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             {isLoading ? '⏳ Loading positions...' : 'No positions found'}
           </div>
@@ -261,7 +262,7 @@ export const AutopilotPositions: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {positions.map((position) => (
+              {safePositions.map((position) => (
                 <PositionRow
                   key={position.position_id}
                   position={position}
