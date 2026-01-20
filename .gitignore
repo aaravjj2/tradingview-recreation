@@ -1,7 +1,10 @@
 # Python
 venv/
 .venv/
+env/
+.env/
 __pycache__/
+
 *.py[cod]
 *$py.class
 
@@ -25,6 +28,11 @@ secrets*
 .pytest_cache/
 coverage/
 htmlcov/
+test-results/
+playwright-report/
+blob-report/
+.npm/
+
 
 # Node / frontend
 node_modules/
@@ -38,6 +46,8 @@ dist/
 # Logs
 logs/
 *.log
+*.out
+
 
 # IDEs
 .vscode/
@@ -48,4 +58,5 @@ logs/
 
 # Misc
 *.sqlite3
+*.db
 .envrc
