@@ -35,9 +35,9 @@ class TestAutopilotConfig:
         """Test default configuration values"""
         config = AutopilotConfig()
         
-        assert config.paper_equity == 1000.0
+        assert config.paper_equity == 100000.0
         assert config.mode == AutopilotMode.PAPER
-        assert len(config.allowed_strategies) == 5
+        assert len(config.allowed_strategies) == 7  # 2 single-leg + 5 spreads
         
     def test_risk_limits_defaults(self):
         """Test default risk limits"""

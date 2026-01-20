@@ -288,3 +288,13 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===== E2E Deterministic Mode ===== */
+body.e2e-mode *,
+body.e2e-mode ::before,
+body.e2e-mode ::after {
+  animation: none !important;
+  transition: none !important;
+  /* Disable blinking cursors to avoid flaky snapshots */
+  caret-color: transparent !important; 
+}

@@ -45,8 +45,8 @@ export const RunsAuditView: React.FC = () => {
   const fetchData = async () => {
     try {
       const [runsRes, auditRes] = await Promise.all([
-        fetch('http://localhost:8000/api/v1/autopilot/runs'),
-        fetch('http://localhost:8000/api/v1/autopilot/logs?limit=200')
+        fetch('/api/v1/autopilot/runs'),
+        fetch('/api/v1/autopilot/logs?limit=200')
       ]);
 
       if (runsRes.ok) {
@@ -58,13 +58,13 @@ export const RunsAuditView: React.FC = () => {
         const auditData = await auditRes.json();
         const raw = (auditData.logs || auditData || []);
         const normalized = raw.map((e: any) => ({
-            id: e.id || `${e.timestamp}-${e.event_type}`,
-            timestamp: e.timestamp || e.created_at || new Date().toISOString(),
-            run_id: e.run_id || null,
-            event_type: e.event_type || e.event || 'event',
-            severity: (e.severity || e.level || 'info'),
-            message: e.message || e.msg || '',
-            details: e.details || {},
+          id: e.id || `${e.timestamp}-${e.event_type}`,
+          timestamp: e.timestamp || e.created_at || new Date().toISOString(),
+          run_id: e.run_id || null,
+          event_type: e.event_type || e.event || 'event',
+          severity: (e.severity || e.level || 'info'),
+          message: e.message || e.msg || '',
+          details: e.details || {},
         }));
         setAuditEvents(normalized);
       }
@@ -192,15 +192,15 @@ export const RunsAuditView: React.FC = () => {
     if (typeFilter !== 'all' && run.type !== typeFilter) return false;
     if (statusFilter !== 'all' && run.status !== statusFilter) return false;
     if (searchQuery && !run.run_id.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !run.summary.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      !run.summary.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
   const filteredAuditEvents = auditEvents.filter(evt => {
     if (severityFilter !== 'all' && evt.severity !== severityFilter) return false;
     if (searchQuery && !evt.message.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !evt.event_type.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !(evt.run_id || '').toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      !evt.event_type.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !(evt.run_id || '').toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
@@ -278,21 +278,19 @@ export const RunsAuditView: React.FC = () => {
       <div className="flex items-center gap-4 border-b border-border">
         <button
           onClick={() => setActiveTab('runs')}
-          className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'runs'
+          className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'runs'
               ? 'border-brand text-brand'
               : 'border-transparent text-text-secondary hover:text-text'
-          }`}
+            }`}
         >
           Runs ({runs.length})
         </button>
         <button
           onClick={() => setActiveTab('audit')}
-          className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'audit'
+          className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'audit'
               ? 'border-brand text-brand'
               : 'border-transparent text-text-secondary hover:text-text'
-          }`}
+            }`}
         >
           Audit Log ({auditEvents.length})
         </button>

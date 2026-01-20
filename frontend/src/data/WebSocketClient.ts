@@ -1,10 +1,14 @@
 import type { WSMessage } from '../core/types.ts';
 
-type MessageCallback = (msg: WSMessage) => void;
-type StateChangeCallback = (state: WSConnectionState, prevState: WSConnectionState) => void;
-
 // WebSocket connection states
 export type WSConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'DEGRADED';
+
+export interface WSStateDetails {
+    reconnectAttempts: number;
+}
+
+type MessageCallback = (msg: WSMessage) => void;
+type StateChangeCallback = (state: WSConnectionState, prevState: WSConnectionState, details?: WSStateDetails) => void;
 
 export class WebSocketClient {
     private url: string;
@@ -15,19 +19,32 @@ export class WebSocketClient {
     private reconnectDelay: number = 1000; // Start at 1s
     private maxReconnectDelay: number = 30000; // Max 30s
     private reconnectAttempts: number = 0;
-    private maxReconnectAttempts: number = 50; // Increased from 10
+    private maxReconnectAttempts: number = 1000; // Effectively infinite (was 50)
     private connectionStartTime: number = 0;
     private lastHeartbeat: number = 0;
     private heartbeatCheckInterval: ReturnType<typeof setInterval> | null = null;
     private keepAliveInterval: ReturnType<typeof setInterval> | null = null;
     private _state: WSConnectionState = 'DISCONNECTED';
-    private degradedThreshold: number = 30000; // 30s without heartbeat = degraded (was 45s)
+    private degradedThreshold: number = 30000; // 30s without heartbeat = degraded
+    private reconnectThreshold: number = 35000; // 35s without heartbeat = reconnect (Strict Stale Detection)
     private visibilityHandler: (() => void) | null = null;
+
+    // E2E Config Overrides
+    public static overrideThresholds(degraded: number, reconnect: number) {
+        WebSocketClient.E2E_DEGRADED_MS = degraded;
+        WebSocketClient.E2E_RECONNECT_MS = reconnect;
+    }
+    private static E2E_DEGRADED_MS: number | null = null;
+    private static E2E_RECONNECT_MS: number | null = null;
 
     constructor(url: string, onMessage: MessageCallback, onStateChange?: StateChangeCallback) {
         this.url = url;
         this.onMessage = onMessage;
         this.onStateChange = onStateChange;
+
+        // Apply overrides if set
+        if (WebSocketClient.E2E_DEGRADED_MS) this.degradedThreshold = WebSocketClient.E2E_DEGRADED_MS;
+        if (WebSocketClient.E2E_RECONNECT_MS) this.reconnectThreshold = WebSocketClient.E2E_RECONNECT_MS;
     }
 
     // State machine getter
@@ -40,7 +57,10 @@ export class WebSocketClient {
             const prevState = this._state;
             this._state = newState;
             console.log(`WS State: ${prevState} -> ${newState}`);
-            this.onStateChange?.(newState, prevState);
+            this.onStateChange?.(newState, prevState, { reconnectAttempts: this.reconnectAttempts });
+        } else if (newState === 'CONNECTING') {
+            // Force update for attempt counting
+            this.onStateChange?.(newState, this._state, { reconnectAttempts: this.reconnectAttempts });
         }
     }
 
@@ -59,7 +79,7 @@ export class WebSocketClient {
             clearInterval(this.keepAliveInterval);
         }
 
-        // Check every 15s for degraded state and 60s for reconnect
+        // Check every 5s for tighter control (was 15s)
         this.heartbeatCheckInterval = setInterval(() => {
             const now = Date.now();
             const timeSinceLastHeartbeat = now - this.lastHeartbeat;
@@ -69,12 +89,12 @@ export class WebSocketClient {
                 this.setState('DEGRADED');
             }
 
-            // If no heartbeat in 60s, reconnect
-            if (this.lastHeartbeat > 0 && timeSinceLastHeartbeat > 60000) {
-                console.warn('No heartbeat received in 60s, reconnecting...');
+            // If no heartbeat in reconnectThreshold (35s), reconnect
+            if (this.lastHeartbeat > 0 && timeSinceLastHeartbeat > this.reconnectThreshold) {
+                console.warn(`No heartbeat received in ${this.reconnectThreshold}ms, reconnecting...`);
                 this.reconnect();
             }
-        }, 15000);
+        }, 5000);
 
         // Proactive keepalive ping every 20s (prevents idle disconnects)
         this.keepAliveInterval = setInterval(() => {
@@ -226,7 +246,7 @@ export class WebSocketClient {
                 const timeSinceLastHeartbeat = this.lastHeartbeat > 0 ? Date.now() - this.lastHeartbeat : 0;
 
                 if (this._state === 'DISCONNECTED' ||
-                    (this._state === 'DEGRADED' && timeSinceLastHeartbeat > 60000)) {
+                    (this._state === 'DEGRADED' && timeSinceLastHeartbeat > this.reconnectThreshold)) {
                     console.log('Tab visible, reconnecting WebSocket...');
                     this.forceReconnect();
                 } else if (this._state === 'CONNECTED' && timeSinceLastHeartbeat > 30000) {

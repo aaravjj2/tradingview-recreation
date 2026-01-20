@@ -23,9 +23,10 @@ interface PositionRowProps {
   position: AutopilotPosition;
   expanded: boolean;
   onToggle: () => void;
+  onClose: (symbol: string) => void;
 }
 
-const PositionRow: React.FC<PositionRowProps> = ({ position, expanded, onToggle }) => {
+const PositionRow: React.FC<PositionRowProps> = ({ position, expanded, onToggle, onClose }) => {
   const pnlClass = position.unrealized_pnl >= 0 ? 'text-green-400' : 'text-red-400';
   const statusColors: Record<string, string> = {
     open: 'bg-green-600',
@@ -36,7 +37,7 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, expanded, onToggle 
 
   return (
     <>
-      <tr 
+      <tr
         className="border-b border-gray-700 hover:bg-gray-750 cursor-pointer"
         onClick={onToggle}
         data-testid={`position-row-${position.position_id}`}
@@ -64,6 +65,21 @@ const PositionRow: React.FC<PositionRowProps> = ({ position, expanded, onToggle 
         </td>
         <td className="px-4 py-3 text-right text-gray-400">
           {position.days_to_expiry}d
+        </td>
+        <td className="px-4 py-3 text-right">
+          {position.status === 'open' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose(position.symbol);
+              }}
+              className="px-2 py-1 bg-red-900 border border-red-700 text-red-200 text-xs rounded hover:bg-red-700 transition-colors"
+              title="Panic Sell - Close Immediately"
+              data-testid={`panic-sell-${position.symbol}`}
+            >
+              🚨 Close
+            </button>
+          )}
         </td>
       </tr>
       {expanded && (
@@ -136,7 +152,7 @@ const PositionDetails: React.FC<PositionDetailsProps> = ({ position }) => {
             </div>
           </div>
         )}
-        
+
         <h4 className="text-sm font-semibold text-gray-400 mt-4 mb-2">Trade Info</h4>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div>
@@ -164,7 +180,7 @@ const PositionDetails: React.FC<PositionDetailsProps> = ({ position }) => {
 type FilterStatus = 'all' | 'open' | 'closed';
 
 export const AutopilotPositions: React.FC = () => {
-  const { positions = [], isLoading, fetchPositions } = useAutopilotStore();
+  const { positions = [], isLoading, fetchPositions, closePosition } = useAutopilotStore();
   const [filter, setFilter] = useState<FilterStatus>('open');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -199,11 +215,10 @@ export const AutopilotPositions: React.FC = () => {
               <button
                 key={status}
                 onClick={() => setFilter(status)}
-                className={`px-3 py-1 rounded text-sm ${
-                  filter === status
+                className={`px-3 py-1 rounded text-sm ${filter === status
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
+                  }`}
                 data-testid={`filter-${status}`}
               >
                 {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -259,6 +274,7 @@ export const AutopilotPositions: React.FC = () => {
                 <th className="px-4 py-3 text-right">Unrealized P&L</th>
                 <th className="px-4 py-3 text-right">% P&L</th>
                 <th className="px-4 py-3 text-right">DTE</th>
+                <th className="px-4 py-3 w-20"></th>
               </tr>
             </thead>
             <tbody>
@@ -268,6 +284,7 @@ export const AutopilotPositions: React.FC = () => {
                   position={position}
                   expanded={expandedIds.has(position.position_id)}
                   onToggle={() => toggleExpand(position.position_id)}
+                  onClose={closePosition}
                 />
               ))}
             </tbody>

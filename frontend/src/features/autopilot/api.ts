@@ -25,12 +25,12 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
       ...options?.headers,
     },
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
     throw new Error(error.detail || `HTTP ${response.status}`);
   }
-  
+
   return response.json();
 }
 
@@ -202,6 +202,15 @@ export const unifiedAutopilotApi = {
    */
   async getWsEvents(): Promise<{ events: Array<{ name: string; description: string; payload: Record<string, string> }> }> {
     return fetchJSON(`${API_BASE}/ws-events`);
+  },
+
+  /**
+   * Close a position immediately (Panic Sell)
+   */
+  async closePosition(symbol: string): Promise<any> {
+    return fetchJSON(`${API_BASE}/positions/${symbol}/close`, {
+      method: 'POST',
+    });
   },
 };
 
@@ -417,7 +426,7 @@ export const autopilotApi = {
     if (options?.limit) params.set('limit', options.limit.toString());
     if (options?.event_type) params.set('event_type', options.event_type);
     if (options?.level) params.set('level', options.level);
-    
+
     const url = `${API_BASE}/logs?${params.toString()}`;
     return fetchJSON(url);
   },
@@ -435,7 +444,7 @@ export const autopilotApi = {
    * Get daily report
    */
   async getDailyReport(reportDate?: string): Promise<{ report: DailyReport; markdown: string }> {
-    const url = reportDate 
+    const url = reportDate
       ? `${API_BASE}/report?report_date=${reportDate}`
       : `${API_BASE}/report`;
     return fetchJSON(url);
@@ -476,5 +485,12 @@ export const autopilotApi = {
     count: number;
   }> {
     return fetchJSON(`${API_BASE}/universe`);
+  },
+
+  /**
+   * Close a position immediately (Panic Sell)
+   */
+  async closePosition(symbol: string): Promise<any> {
+    return unifiedAutopilotApi.closePosition(symbol);
   },
 };

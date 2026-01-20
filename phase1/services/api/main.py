@@ -43,6 +43,11 @@ async def lifespan(app: FastAPI):
     await init_database()
     logger.info("database_initialized")
     
+    # Initialize autopilot DB tables
+    from ..autopilot.repository import init_autopilot_db
+    init_autopilot_db()
+    logger.info("autopilot_db_initialized")
+    
     # Start Autopilot Service (Background)
     # This runs the cycle every 60 seconds autonomously
     try:
@@ -61,11 +66,11 @@ async def lifespan(app: FastAPI):
     csv_path = None
     provider_override = None
 
-    if settings.apca_api_key_id:
+    if settings.apca_api_key_id and not os.environ.get("E2E_MODE"):
         mode = "live"
         provider_override = "alpaca"
         logger.info("using_alpaca_live_data")
-    elif settings.finnhub_api_key:
+    elif settings.finnhub_api_key and not os.environ.get("E2E_MODE"):
         mode = "live"
         provider_override = "finnhub"
         logger.info("using_finnhub_live_data")

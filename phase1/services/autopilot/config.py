@@ -27,11 +27,20 @@ class AutopilotMode(str, Enum):
 
 class StrategyTemplate(str, Enum):
     """Available strategy templates."""
+    # V1 Single-leg templates (primary)
+    LONG_CALL = "long_call"
+    LONG_PUT = "long_put"
+    
+    # V2+ Spread templates (gated off in v1)
     PUT_CREDIT_SPREAD = "put_credit_spread"
     CALL_CREDIT_SPREAD = "call_credit_spread"
     IRON_CONDOR = "iron_condor"
     CALL_DEBIT_SPREAD = "call_debit_spread"
     PUT_DEBIT_SPREAD = "put_debit_spread"
+
+
+# V1 Mode: only single-leg templates allowed
+V1_TEMPLATES = [StrategyTemplate.LONG_CALL, StrategyTemplate.LONG_PUT]
 
 
 # Default liquid universe
@@ -65,7 +74,7 @@ class RiskLimits:
 
 @dataclass
 class StrategyConstraints:
-    """Constraints for strategy templates."""
+    """Constraints for strategy templates (spreads)."""
     min_dte: int = 1
     max_dte: int = 60
     min_short_delta: float = 0.15
@@ -77,6 +86,24 @@ class StrategyConstraints:
     take_profit_pct: float = 0.50  # 50% of max profit
     time_stop_dte: int = 1  # Close when DTE <= 1
     loss_stop_multiplier: float = 2.0  # 2x credit received
+
+
+@dataclass
+class SingleLegConstraints:
+    """Constraints for single-leg options (v1)."""
+    # Delta targeting (0.35-0.65 for ATM-ish)
+    target_delta_min: float = 0.35
+    target_delta_max: float = 0.65
+    # Risk parameters
+    stop_loss_pct: float = -0.20  # Exit at -20% premium loss
+    profit_target_pct: float = 0.50  # Exit at +50% premium gain
+    # Time management
+    time_stop_eod: bool = True  # Flatten at end of day for 0DTE
+    max_dte: int = 7  # Max days to expiration
+    min_dte: int = 0  # Minimum DTE (0 for 0DTE)
+    # Liquidity
+    min_bid: float = 0.05  # Minimum bid price
+    max_spread_pct: float = 0.20  # Max bid-ask spread as % of mid
 
 
 @dataclass

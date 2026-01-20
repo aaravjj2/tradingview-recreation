@@ -1,11 +1,15 @@
-import { useState } from 'react';
-import { AlertTriangle, Play, FileText, Hash, Clock, Database, Download, Trash2, Eye, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Play, FileText, Database, Download, CheckCircle, ShieldAlert } from 'lucide-react';
 import { Button } from '../../../ui/Button';
 import { Badge } from '../../../ui/Badge';
 import { Panel } from '../../../ui/Panel';
 import { cn } from '../../../ui/utils';
 
-interface Incident {
+// ==========================================
+// TYPES
+// ==========================================
+
+interface IncidentBundle {
     id: string;
     name: string;
     recordedAt: string;
@@ -16,7 +20,20 @@ interface Incident {
     symbols: string[];
 }
 
-const mockIncidents: Incident[] = [
+interface SystemAlert {
+    id: string;
+    severity: 'info' | 'warning' | 'error' | 'critical';
+    category: string;
+    title: string;
+    description: string;
+    run_id: string | null;
+    created_at: string;
+    resolved: boolean;
+    resolved_at: string | null;
+    resolution_note: string | null;
+}
+
+const mockBundles: IncidentBundle[] = [
     {
         id: 'bundle_001',
         name: 'AAPL_2026-01-12_morning',
@@ -27,22 +44,59 @@ const mockIncidents: Incident[] = [
         status: 'verified',
         symbols: ['AAPL'],
     },
-    {
-        id: 'bundle_002',
-        name: 'MSFT_TSLA_2026-01-11',
-        recordedAt: '2026-01-11T09:30:00Z',
-        durationSeconds: 23400,
-        tickCount: 125000,
-        hash: 'sha256:789xyz...',
-        status: 'completed',
-        symbols: ['MSFT', 'TSLA'],
-    },
 ];
 
 export function IncidentsView() {
-    const [incidents, setIncidents] = useState<Incident[]>(mockIncidents);
+    const [activeTab, setActiveTab] = useState<'alerts' | 'bundles'>('alerts');
+
+    // Alert State
+    const [alerts, setAlerts] = useState<SystemAlert[]>([]);
+    const [alertsLoading, setAlertsLoading] = useState(false);
+
+    // Bundle State
+    const [bundles, setBundles] = useState<IncidentBundle[]>(mockBundles);
     const [isRecording, setIsRecording] = useState(false);
-    const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+    const [selectedBundle, setSelectedBundle] = useState<IncidentBundle | null>(null);
+
+    // ==========================================
+    // ALERTS LOGIC
+    // ==========================================
+
+    const fetchAlerts = async () => {
+        setAlertsLoading(true);
+        try {
+            const res = await fetch('/api/v1/alerts?limit=50');
+            if (res.ok) {
+                const data = await res.json();
+                setAlerts(data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch alerts:', err);
+        } finally {
+            setAlertsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'alerts') {
+            fetchAlerts();
+            const interval = setInterval(fetchAlerts, 10000);
+            return () => clearInterval(interval);
+        }
+    }, [activeTab]);
+
+    const handleResolveAlert = async (id: string) => {
+        try {
+            await fetch(`/api/v1/alerts/${id}/resolve?note=Manual resolution`, { method: 'POST' });
+            fetchAlerts();
+        } catch (err) {
+            console.error('Failed to resolve alert:', err);
+        }
+    };
+
+    // ==========================================
+    // BUNDLE LOGIC
+    // ==========================================
 
     const formatDuration = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);
@@ -52,13 +106,13 @@ export function IncidentsView() {
 
     const handleStartRecording = () => {
         setIsRecording(true);
-        // In real implementation: POST /api/v1/incidents/record
+        // In real implementation: POST /api/v1/incidents/start
     };
 
     const handleStopRecording = () => {
         setIsRecording(false);
-        // In real implementation: POST /api/v1/incidents/{id}/stop
-        const newIncident: Incident = {
+        // In real implementation: POST /api/v1/incidents/{run_id}/stop
+        const newBundle: IncidentBundle = {
             id: `bundle_${Date.now()}`,
             name: `Recording_${new Date().toISOString().slice(0, 10)}`,
             recordedAt: new Date().toISOString(),
@@ -68,212 +122,234 @@ export function IncidentsView() {
             status: 'completed',
             symbols: ['AAPL'],
         };
-        setIncidents(prev => [newIncident, ...prev]);
-    };
-
-    const handleReplay = (incident: Incident) => {
-        // Navigate to replay view with this bundle
-        console.log('Replay bundle:', incident.id);
-    };
-
-    const handleDelete = (id: string) => {
-        setIncidents(prev => prev.filter(i => i.id !== id));
-    };
-
-    const handleDownload = (incident: Incident) => {
-        // Download bundle file
-        console.log('Download bundle:', incident.id);
+        setBundles(prev => [newBundle, ...prev]);
     };
 
     return (
-        <div className="h-full overflow-auto bg-background p-6">
-            <div className="max-w-6xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <AlertTriangle className="text-brand" size={28} />
-                        <div>
-                            <h1 className="text-2xl font-bold text-text">Incidents & Bundles</h1>
-                            <p className="text-sm text-text-secondary">Record live sessions for deterministic replay and testing</p>
-                        </div>
+        <div className="h-full overflow-auto bg-background flex flex-col">
+            {/* Header */}
+            <div className="p-6 pb-0">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 className="text-2xl font-bold text-text">Incidents & Forensics</h1>
+                        <p className="text-sm text-text-secondary">
+                            Monitor system health alerts and manage replay bundles
+                        </p>
                     </div>
-                    <Button
-                        variant={isRecording ? 'danger' : 'primary'}
-                        onClick={isRecording ? handleStopRecording : handleStartRecording}
-                        className="gap-2"
-                    >
-                        {isRecording ? (
-                            <>
-                                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                                Stop Recording
-                            </>
-                        ) : (
-                            <>
-                                <Database size={16} />
-                                Start Recording
-                            </>
-                        )}
-                    </Button>
+                    {activeTab === 'bundles' && (
+                        <Button
+                            variant={isRecording ? 'danger' : 'primary'}
+                            onClick={isRecording ? handleStopRecording : handleStartRecording}
+                            className="gap-2"
+                        >
+                            {isRecording ? (
+                                <>
+                                    <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                                    Stop Recording
+                                </>
+                            ) : (
+                                <>
+                                    <Database size={16} />
+                                    Start Recording
+                                </>
+                            )}
+                        </Button>
+                    )}
                 </div>
 
-                {/* Recording Status */}
-                {isRecording && (
-                    <Panel className="bg-red-500/10 border-red-500/50 p-4">
-                        <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                            <div>
-                                <p className="font-semibold text-red-400">Recording in progress...</p>
-                                <p className="text-sm text-red-300/70">Capturing live market data for replay bundle</p>
-                            </div>
-                            <div className="ml-auto text-sm text-red-300 font-mono">
-                                00:05:32
-                            </div>
-                        </div>
-                    </Panel>
-                )}
+                {/* Tab Switcher */}
+                <div className="flex items-center gap-6 border-b border-border">
+                    <button
+                        onClick={() => setActiveTab('alerts')}
+                        className={cn(
+                            "pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2",
+                            activeTab === 'alerts'
+                                ? "border-brand text-brand"
+                                : "border-transparent text-text-secondary hover:text-text"
+                        )}
+                    >
+                        <ShieldAlert size={16} />
+                        System Alerts
+                        {alerts.filter(a => !a.resolved).length > 0 && (
+                            <Badge variant="error" className="ml-1 h-5 px-1.5">
+                                {alerts.filter(a => !a.resolved).length}
+                            </Badge>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('bundles')}
+                        className={cn(
+                            "pb-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2",
+                            activeTab === 'bundles'
+                                ? "border-brand text-brand"
+                                : "border-transparent text-text-secondary hover:text-text"
+                        )}
+                    >
+                        <Database size={16} />
+                        Replay Bundles
+                    </button>
+                </div>
+            </div>
 
-                {/* Bundles List */}
-                <Panel className="overflow-hidden">
-                    <div className="p-4 border-b border-border">
-                        <h3 className="font-semibold">Recorded Bundles</h3>
-                    </div>
-                    <div className="divide-y divide-border">
-                        {incidents.length === 0 ? (
-                            <div className="p-8 text-center text-text-secondary">
-                                <Database size={32} className="mx-auto mb-2 opacity-50" />
-                                <p>No recorded bundles</p>
-                                <p className="text-sm">Start recording to capture live market data</p>
+            {/* Content Area */}
+            <div className="flex-1 p-6 overflow-hidden">
+                {activeTab === 'alerts' ? (
+                    <div className="h-full overflow-auto space-y-4">
+                        {alertsLoading && alerts.length === 0 ? (
+                            <div className="text-center py-12 text-text-secondary">Loading alerts...</div>
+                        ) : alerts.length === 0 ? (
+                            <div className="text-center py-12 text-text-secondary">
+                                <CheckCircle size={48} className="mx-auto mb-4 text-green-500/50" />
+                                <h3 className="text-lg font-medium text-text">All Clear</h3>
+                                <p>No active system incidents or alerts.</p>
                             </div>
                         ) : (
-                            incidents.map(incident => (
-                                <div
-                                    key={incident.id}
+                            alerts.map(alert => (
+                                <Panel
+                                    key={alert.id}
                                     className={cn(
-                                        "p-4 hover:bg-element-bg/50 transition-colors cursor-pointer",
-                                        selectedIncident?.id === incident.id && "bg-element-bg"
+                                        "p-4 border-l-4",
+                                        alert.resolved ? "border-l-border" :
+                                            alert.severity === 'critical' || alert.severity === 'error' ? "border-l-red-500" :
+                                                alert.severity === 'warning' ? "border-l-yellow-500" : "border-l-blue-500"
                                     )}
-                                    onClick={() => setSelectedIncident(incident)}
                                 >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded bg-element-bg flex items-center justify-center">
-                                            <FileText size={20} className="text-text-secondary" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-medium text-text truncate">{incident.name}</span>
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
                                                 <Badge variant={
-                                                    incident.status === 'verified' ? 'success' :
-                                                    incident.status === 'recording' ? 'error' : 'default'
+                                                    alert.resolved ? 'default' :
+                                                        alert.severity === 'critical' || alert.severity === 'error' ? 'error' :
+                                                            alert.severity === 'warning' ? 'warning' : 'outline'
                                                 }>
-                                                    {incident.status === 'verified' && <CheckCircle size={12} className="mr-1" />}
-                                                    {incident.status}
+                                                    {alert.severity.toUpperCase()}
                                                 </Badge>
-                                            </div>
-                                            <div className="flex items-center gap-4 mt-1 text-sm text-text-secondary">
-                                                <span className="flex items-center gap-1">
-                                                    <Clock size={12} />
-                                                    {formatDuration(incident.durationSeconds)}
-                                                </span>
-                                                <span>{incident.tickCount.toLocaleString()} ticks</span>
-                                                <span className="flex items-center gap-1">
-                                                    <Hash size={12} />
-                                                    {incident.hash.slice(0, 16)}...
+                                                <span className="font-medium text-text">{alert.title}</span>
+                                                <span className="text-text-muted text-xs mx-2">
+                                                    {new Date(alert.created_at).toLocaleString()}
                                                 </span>
                                             </div>
+                                            <p className="text-sm text-text-secondary mt-1">{alert.description}</p>
+                                            {alert.run_id && (
+                                                <div className="mt-2 text-xs font-mono text-text-muted bg-element-bg inline-block px-1.5 py-0.5 rounded">
+                                                    Run: {alert.run_id}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            {incident.symbols.map(s => (
-                                                <Badge key={s} variant="outline">{s}</Badge>
-                                            ))}
-                                        </div>
-                                        <div className="flex items-center gap-1">
+                                        {!alert.resolved ? (
                                             <Button
                                                 size="sm"
-                                                variant="ghost"
-                                                onClick={(e) => { e.stopPropagation(); handleReplay(incident); }}
-                                                title="Replay"
+                                                variant="secondary"
+                                                onClick={() => handleResolveAlert(alert.id)}
                                             >
-                                                <Play size={16} />
+                                                Resolve
                                             </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={(e) => { e.stopPropagation(); handleDownload(incident); }}
-                                                title="Download"
-                                            >
-                                                <Download size={16} />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={(e) => { e.stopPropagation(); handleDelete(incident.id); }}
-                                                title="Delete"
-                                                className="text-red-400 hover:text-red-300"
-                                            >
-                                                <Trash2 size={16} />
-                                            </Button>
-                                        </div>
+                                        ) : (
+                                            <div className="text-xs text-text-muted flex items-center gap-1">
+                                                <CheckCircle size={12} />
+                                                Resolved
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
+                                </Panel>
                             ))
                         )}
                     </div>
-                </Panel>
+                ) : (
+                    <div className="h-full overflow-auto space-y-6">
+                        {/* Recording Status */}
+                        {isRecording && (
+                            <Panel className="bg-red-500/10 border-red-500/50 p-4">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                                    <div>
+                                        <p className="font-semibold text-red-400">Recording in progress...</p>
+                                        <p className="text-sm text-red-300/70">Capturing live market data for replay bundle</p>
+                                    </div>
+                                    <div className="ml-auto text-sm text-red-300 font-mono">
+                                        00:05:32
+                                    </div>
+                                </div>
+                            </Panel>
+                        )}
 
-                {/* Selected Bundle Details */}
-                {selectedIncident && (
-                    <Panel className="p-6">
-                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <Eye size={18} />
-                            Bundle Details: {selectedIncident.name}
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <span className="text-text-secondary">ID:</span>
-                                <span className="ml-2 font-mono">{selectedIncident.id}</span>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Bundle List */}
+                            <div className="space-y-4">
+                                {bundles.map(bundle => (
+                                    <Panel
+                                        key={bundle.id}
+                                        className={cn(
+                                            "p-4 cursor-pointer hover:bg-element-bg transition-colors",
+                                            selectedBundle?.id === bundle.id && "ring-2 ring-brand"
+                                        )}
+                                        onClick={() => setSelectedBundle(bundle)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-element-bg rounded flex items-center justify-center">
+                                                    <FileText size={16} className="text-text-secondary" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-medium text-text text-sm">{bundle.name}</h3>
+                                                    <div className="text-xs text-text-muted mt-0.5 flex items-center gap-2">
+                                                        <span>{new Date(bundle.recordedAt).toLocaleDateString()}</span>
+                                                        <span>•</span>
+                                                        <span>{formatDuration(bundle.durationSeconds)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Badge variant="outline">{bundle.status}</Badge>
+                                        </div>
+                                    </Panel>
+                                ))}
                             </div>
-                            <div>
-                                <span className="text-text-secondary">Recorded:</span>
-                                <span className="ml-2">{new Date(selectedIncident.recordedAt).toLocaleString()}</span>
-                            </div>
-                            <div>
-                                <span className="text-text-secondary">Duration:</span>
-                                <span className="ml-2">{formatDuration(selectedIncident.durationSeconds)}</span>
-                            </div>
-                            <div>
-                                <span className="text-text-secondary">Tick Count:</span>
-                                <span className="ml-2">{selectedIncident.tickCount.toLocaleString()}</span>
-                            </div>
-                            <div className="col-span-2">
-                                <span className="text-text-secondary">Hash:</span>
-                                <span className="ml-2 font-mono text-xs break-all">{selectedIncident.hash}</span>
-                            </div>
-                            <div>
-                                <span className="text-text-secondary">Symbols:</span>
-                                <span className="ml-2">{selectedIncident.symbols.join(', ')}</span>
-                            </div>
+
+                            {/* Bundle Details */}
+                            {selectedBundle ? (
+                                <Panel className="p-6 h-fit bg-surface-elevated">
+                                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                        <Database size={18} />
+                                        Bundle Details
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4 text-sm">
+                                            <div>
+                                                <label className="text-text-secondary text-xs">ID</label>
+                                                <div className="font-mono">{selectedBundle.id}</div>
+                                            </div>
+                                            <div>
+                                                <label className="text-text-secondary text-xs">Tick Count</label>
+                                                <div>{selectedBundle.tickCount.toLocaleString()}</div>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <label className="text-text-secondary text-xs">Content Hash</label>
+                                                <div className="font-mono text-xs break-all bg-element-bg p-2 rounded mt-1">
+                                                    {selectedBundle.hash}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 border-t border-border flex gap-2">
+                                            <Button className="flex-1" variant="primary">
+                                                <Play size={16} className="mr-2" /> Load Replay
+                                            </Button>
+                                            <Button variant="secondary">
+                                                <Download size={16} />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </Panel>
+                            ) : (
+                                <div className="hidden lg:flex items-center justify-center text-text-secondary h-64 border-2 border-dashed border-border rounded-lg">
+                                    Select a bundle to view details
+                                </div>
+                            )}
                         </div>
-                        <div className="mt-4 pt-4 border-t border-border flex gap-2">
-                            <Button variant="primary" onClick={() => handleReplay(selectedIncident)}>
-                                <Play size={16} className="mr-2" />
-                                Load in Replay Mode
-                            </Button>
-                            <Button variant="secondary" onClick={() => handleDownload(selectedIncident)}>
-                                <Download size={16} className="mr-2" />
-                                Export Bundle
-                            </Button>
-                        </div>
-                    </Panel>
+                    </div>
                 )}
-
-                {/* Info Panel */}
-                <Panel className="p-4 bg-blue-500/10 border-blue-500/30">
-                    <p className="text-sm text-blue-400">
-                        <strong>Deterministic Replay:</strong> Bundles capture raw provider events, normalized ticks, bars, and hashes. 
-                        Replay mode proves parity via hash verification — ensuring identical bar formation from the same input data.
-                    </p>
-                </Panel>
             </div>
         </div>
     );
 }
+

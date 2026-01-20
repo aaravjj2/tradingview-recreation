@@ -22,7 +22,7 @@ import { SupergraphModule } from './SupergraphModule';
 import { AIPanel } from './AIPanel';
 import { TradeLifecycleDrawer } from './TradeLifecycleDrawer';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = '/api/v1';
 
 // Types
 interface DailyStats {
@@ -306,10 +306,10 @@ export function UnifiedDashboardView() {
         return () => clearInterval(interval);
     }, [fetchDailyStats, fetchPositions, fetchOrders, fetchEventLog]);
 
-    const formatCurrency = (v: number) => new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
+    const formatCurrency = (v: number) => new Intl.NumberFormat('en-US', {
+        style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 0 
+        minimumFractionDigits: 0
     }).format(v);
 
     void formatCurrency; // Mark as used if needed later
@@ -321,7 +321,7 @@ export function UnifiedDashboardView() {
                 <div className="flex items-center gap-3">
                     {/* Symbol Dropdown */}
                     <div className="relative">
-                        <button 
+                        <button
                             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-element-bg hover:bg-border transition-colors"
                             data-testid="symbol-selector"
                         >
@@ -338,8 +338,8 @@ export function UnifiedDashboardView() {
                                 onClick={() => setTimeframe(tf)}
                                 className={cn(
                                     "px-2 py-1 text-xs rounded transition-colors",
-                                    timeframe === tf 
-                                        ? "bg-brand text-white" 
+                                    timeframe === tf
+                                        ? "bg-brand text-white"
                                         : "text-text-secondary hover:text-text"
                                 )}
                             >
@@ -400,7 +400,7 @@ export function UnifiedDashboardView() {
             <div className={cn("flex-1 flex overflow-hidden", focusMode && "flex-col")}>
                 {/* Left Column - Supergraph */}
                 <div className={cn("flex-1 flex flex-col overflow-hidden", !focusMode && "border-r border-border")}>
-                    <SupergraphModule 
+                    <SupergraphModule
                         symbol={selectedSymbol}
                         timeframe={timeframe}
                         onTradeClick={handleTradeClick}
@@ -447,7 +447,7 @@ export function UnifiedDashboardView() {
                         <span className="text-[10px] uppercase text-text-secondary">Daily Loss Cap</span>
                         <div className="flex items-center gap-1">
                             <div className="w-20 h-1.5 bg-element-bg rounded-full overflow-hidden">
-                                <div 
+                                <div
                                     className="h-full bg-red-500 transition-all"
                                     style={{ width: `${dailyStats ? (dailyStats.daily_loss_cap_used / (dailyStats.daily_loss_cap_used + dailyStats.daily_loss_cap_remaining)) * 100 : 0}%` }}
                                 />
@@ -463,7 +463,7 @@ export function UnifiedDashboardView() {
                         <span className="text-[10px] uppercase text-text-secondary">Open Risk</span>
                         <div className="flex items-center gap-1">
                             <div className="w-20 h-1.5 bg-element-bg rounded-full overflow-hidden">
-                                <div 
+                                <div
                                     className="h-full bg-yellow-500 transition-all"
                                     style={{ width: `${dailyStats ? (dailyStats.total_open_risk / dailyStats.max_open_risk) * 100 : 0}%` }}
                                 />
@@ -540,9 +540,9 @@ export function UnifiedDashboardView() {
                                                 <span className={cn(
                                                     "px-1.5 py-0.5 rounded text-[10px] font-medium",
                                                     pos.status === 'healthy' ? "bg-green-500/20 text-green-400" :
-                                                    pos.status === 'near_profit' ? "bg-blue-500/20 text-blue-400" :
-                                                    pos.status === 'near_stop' ? "bg-red-500/20 text-red-400" :
-                                                    "bg-yellow-500/20 text-yellow-400"
+                                                        pos.status === 'near_profit' ? "bg-blue-500/20 text-blue-400" :
+                                                            pos.status === 'near_stop' ? "bg-red-500/20 text-red-400" :
+                                                                "bg-yellow-500/20 text-yellow-400"
                                                 )}>
                                                     {pos.status.replace('_', ' ')}
                                                 </span>
@@ -577,9 +577,9 @@ export function UnifiedDashboardView() {
                                             <span className={cn(
                                                 "px-1.5 py-0.5 rounded text-[10px]",
                                                 order.status === 'filled' ? "bg-green-500/20 text-green-400" :
-                                                order.status === 'pending' ? "bg-yellow-500/20 text-yellow-400" :
-                                                order.status === 'partial' ? "bg-blue-500/20 text-blue-400" :
-                                                "bg-red-500/20 text-red-400"
+                                                    order.status === 'pending' ? "bg-yellow-500/20 text-yellow-400" :
+                                                        order.status === 'partial' ? "bg-blue-500/20 text-blue-400" :
+                                                            "bg-red-500/20 text-red-400"
                                             )}>
                                                 {order.status}
                                             </span>
@@ -617,8 +617,8 @@ export function UnifiedDashboardView() {
                                             <div className={cn(
                                                 "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
                                                 event.severity === 'error' ? "bg-red-500" :
-                                                event.severity === 'warning' ? "bg-yellow-500" :
-                                                "bg-blue-500"
+                                                    event.severity === 'warning' ? "bg-yellow-500" :
+                                                        "bg-blue-500"
                                             )} />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-[10px] text-text truncate">{event.message}</p>
@@ -658,7 +658,7 @@ export function UnifiedDashboardView() {
                                 <span className="text-text-secondary">Max Daily Loss</span>
                                 <span className="text-text tabular-nums">${riskCaps?.max_daily_loss || '--'}</span>
                             </div>
-                            
+
                             <div className="pt-2 mt-2 border-t border-border">
                                 <div className="flex justify-between mb-1">
                                     <span className="text-text-secondary">Strategies</span>
@@ -682,7 +682,7 @@ export function UnifiedDashboardView() {
 
             {/* Trade Lifecycle Drawer */}
             {drawerOpen && selectedTrade && (
-                <TradeLifecycleDrawer 
+                <TradeLifecycleDrawer
                     trade={selectedTrade}
                     onClose={() => setDrawerOpen(false)}
                 />

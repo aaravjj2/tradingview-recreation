@@ -21,7 +21,7 @@ import { Table, type Column } from '../../ui/Table';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/Tabs';
 import { useToast } from '../../ui/Toast';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
 // Types
 interface UnifiedPosition {

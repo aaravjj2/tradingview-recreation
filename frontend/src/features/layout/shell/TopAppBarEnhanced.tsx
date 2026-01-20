@@ -19,7 +19,7 @@ import {
 import { cn } from '../../../ui/utils';
 import { useStore } from '../../../state/store';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
 // Types
 interface AutopilotStatus {
@@ -163,7 +163,7 @@ export function TopAppBarEnhanced() {
 
         // Check other providers via health endpoint
         try {
-            const res = await fetch('http://localhost:8000/health');
+            const res = await fetch('http://127.0.0.1:8000/health');
             if (res.ok) {
                 statuses['finnhub'] = { provider: 'Finnhub', status: 'connected' };
                 statuses['yfinance'] = { provider: 'yfinance', status: 'connected' };

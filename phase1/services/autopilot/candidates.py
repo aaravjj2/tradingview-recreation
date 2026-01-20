@@ -136,6 +136,10 @@ class CandidateGenerator:
     
     # DTE constraints per template (relaxed to allow 1+ days)
     DTE_CONSTRAINTS = {
+        # V1 Single-leg
+        StrategyTemplate.LONG_CALL: (0, 7),
+        StrategyTemplate.LONG_PUT: (0, 7),
+        # V2+ Spreads
         StrategyTemplate.PUT_CREDIT_SPREAD: (1, 60),
         StrategyTemplate.CALL_CREDIT_SPREAD: (1, 60),
         StrategyTemplate.IRON_CONDOR: (7, 60),
@@ -145,6 +149,9 @@ class CandidateGenerator:
     
     # Delta targets for short legs (credit spreads)
     CREDIT_DELTA_RANGE = (0.15, 0.35)
+    
+    # Delta targets for single-leg (v1) - ATM-ish
+    SINGLE_LEG_DELTA_RANGE = (0.35, 0.65)
     
     # Spread width constraints (in dollars)
     SPREAD_WIDTH_RANGE = (1, 10)
@@ -376,7 +383,17 @@ class CandidateGenerator:
         expiries = self._get_expiries_in_range(chain, dte_min, dte_max)
         
         for expiry, dte in expiries[:3]:  # Limit to 3 expiries per template
-            if template == StrategyTemplate.PUT_CREDIT_SPREAD:
+            # V1 Single-leg templates
+            if template == StrategyTemplate.LONG_CALL:
+                candidates.extend(
+                    self._gen_long_call(symbol, features, chain, price, expiry, dte)
+                )
+            elif template == StrategyTemplate.LONG_PUT:
+                candidates.extend(
+                    self._gen_long_put(symbol, features, chain, price, expiry, dte)
+                )
+            # V2+ Spread templates
+            elif template == StrategyTemplate.PUT_CREDIT_SPREAD:
                 candidates.extend(
                     self._gen_put_credit_spread(symbol, features, chain, price, expiry, dte)
                 )
@@ -837,6 +854,143 @@ class CandidateGenerator:
                 candidates.append(candidate)
                 break
         
+        return candidates[:3]
+    
+    def _gen_long_call(
+        self,
+        symbol: str,
+        features: SymbolFeatures,
+        chain: Dict[str, Any],
+        price: float,
+        expiry: date,
+        dte: int,
+    ) -> List[TradeCandidate]:
+        """Generate long call candidates (bullish, v1 single-leg).
+        
+        Selection criteria:
+        - Delta between target range (0.35-0.65)
+        - Bid > minimum (liquidity check)
+        - Spread % below threshold
+        """
+        calls = self._get_options_for_expiry(chain, expiry, "call")
+        if not calls:
+            return []
+        
+        candidates = []
+        delta_min, delta_max = self.SINGLE_LEG_DELTA_RANGE
+        
+        for call in calls:
+            delta = abs(call.get("delta", 0))
+            bid = call.get("bid", 0)
+            ask = call.get("ask", 0)
+            strike = call.get("strike", 0)
+            
+            # Delta filter
+            if not (delta_min <= delta <= delta_max):
+                continue
+            
+            # Liquidity filter
+            if bid < 0.05:  # Minimum bid
+                continue
+            
+            mid = (bid + ask) / 2 if ask > 0 else bid
+            if mid > 0:
+                spread_pct = (ask - bid) / mid
+                if spread_pct > 0.20:  # Max 20% spread
+                    continue
+            
+            # Premium = cost to enter (max loss for long option)
+            premium = ask
+            max_loss = premium * 100  # Per contract
+            max_profit = float('inf')  # Uncapped for long call
+            pop = 0.40  # Approximate for ATM-ish (conservative)
+            
+            candidate = self._create_candidate(
+                symbol=symbol,
+                template=StrategyTemplate.LONG_CALL,
+                features=features,
+                legs=[
+                    OptionLeg("call", strike, expiry, "buy",
+                              quantity=1, premium=ask, delta=delta)
+                ],
+                underlying_price=price,
+                max_loss=max_loss,
+                max_profit=max_profit,
+                pop=pop,
+                dte=dte,
+            )
+            candidates.append(candidate)
+        
+        # Return top candidates by delta (closer to 0.50 = better)
+        candidates.sort(key=lambda c: abs(c.legs[0].delta - 0.50))
+        return candidates[:3]
+    
+    def _gen_long_put(
+        self,
+        symbol: str,
+        features: SymbolFeatures,
+        chain: Dict[str, Any],
+        price: float,
+        expiry: date,
+        dte: int,
+    ) -> List[TradeCandidate]:
+        """Generate long put candidates (bearish, v1 single-leg).
+        
+        Selection criteria:
+        - Delta between target range (-0.65 to -0.35, abs 0.35-0.65)
+        - Bid > minimum (liquidity check)
+        - Spread % below threshold
+        """
+        puts = self._get_options_for_expiry(chain, expiry, "put")
+        if not puts:
+            return []
+        
+        candidates = []
+        delta_min, delta_max = self.SINGLE_LEG_DELTA_RANGE
+        
+        for put in puts:
+            delta = abs(put.get("delta", 0))  # Put delta is negative, use abs
+            bid = put.get("bid", 0)
+            ask = put.get("ask", 0)
+            strike = put.get("strike", 0)
+            
+            # Delta filter
+            if not (delta_min <= delta <= delta_max):
+                continue
+            
+            # Liquidity filter
+            if bid < 0.05:
+                continue
+            
+            mid = (bid + ask) / 2 if ask > 0 else bid
+            if mid > 0:
+                spread_pct = (ask - bid) / mid
+                if spread_pct > 0.20:
+                    continue
+            
+            premium = ask
+            max_loss = premium * 100  # Per contract
+            max_profit = (strike - premium) * 100  # Max if stock goes to 0
+            pop = 0.40  # Conservative
+            
+            candidate = self._create_candidate(
+                symbol=symbol,
+                template=StrategyTemplate.LONG_PUT,
+                features=features,
+                legs=[
+                    OptionLeg("put", strike, expiry, "buy",
+                              quantity=1, premium=ask, delta=-delta)
+                ],
+                underlying_price=price,
+                max_loss=max_loss,
+                max_profit=max_profit,
+                pop=pop,
+                dte=dte,
+            )
+            candidates.append(candidate)
+        
+        # Return top candidates by delta (closer to 0.50 = better)
+        candidates.sort(key=lambda c: abs(abs(c.legs[0].delta) - 0.50))
         return candidates[:3]
     
     def _get_options_for_expiry(

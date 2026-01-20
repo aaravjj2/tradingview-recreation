@@ -37,6 +37,10 @@ class AutopilotService:
         self._monitoring_task: Optional[asyncio.Task] = None
         self._initialized = True
         
+        # Registry of active agents: symbol -> PositionAgent
+        # Initialized here so it's always accessible via API
+        self.active_agents: Dict[str, "PositionAgent"] = {}
+        
     def initialize(self):
         """Initialize the unified autopilot engine if not already done."""
         if self.engine:
@@ -115,54 +119,54 @@ class AutopilotService:
     
     async def _run_monitoring_loop(self, interval: int):
         """
-        Continuous monitoring loop - checks positions for exit triggers.
-        Runs independently of the main cycle.
+        Continuous monitoring loop - SPAWNS dedicated agents for new positions.
+        Does NOT execute exits itself anymore.
         """
         from .broker_position_manager import get_broker_position_manager
         from .alpaca_client import get_alpaca_client
+        from .position_agent import PositionAgent
         
-        logger.info("Monitoring loop started")
+        logger.info(f"Agent Dispatcher started (checking for new positions every {interval}s)")
         
+        # active_agents is now managed at instance level (self.active_agents)
+        
+        # Start Global Stream Manager
+        try:
+            from .agent_stream import get_agent_stream
+            await get_agent_stream().start()
+        except Exception as e:
+            logger.error(f"Failed to start AgentStreamManager: {e}")
+            
         while self.is_running:
             try:
                 if self.engine and not self.engine.kill_switch_active:
-                    manager = get_broker_position_manager()
                     client = get_alpaca_client()
                     
                     if client.is_connected:
-                        # Fetch current positions
+                        # 1. Get current real positions
                         positions = await client.list_positions()
+                        current_symbols = {p.symbol for p in positions}
                         
-                        if positions:
-                            # Evaluate all positions for exit signals
-                            enriched = manager.enrich_positions(positions)
-                            signals = []
-                            
-                            for pos in enriched:
-                                pos_signals = manager.evaluate_exit_triggers(pos)
-                                signals.extend(pos_signals)
-                            
-                            # Execute urgent exits
-                            urgent = [s for s in signals if s.urgency == "critical"]
-                            if urgent:
-                                logger.warning(f"Found {len(urgent)} urgent exit signals!")
-                                await self._execute_urgent_exits(urgent)
-                            
-                            # Broadcast position update via WebSocket
-                            try:
-                                from ..api.autopilot_websocket import get_autopilot_ws_manager
-                                ws = get_autopilot_ws_manager()
-                                await ws.broadcast("POSITIONS_UPDATE", {
-                                    "count": len(positions),
-                                    "signals": len(signals),
-                                    "urgent": len(urgent),
-                                    "timestamp": datetime.utcnow().isoformat()
-                                })
-                            except Exception:
-                                pass
+                        # 2. Spawn agents for new positions
+                        for p in positions:
+                            if p.symbol not in self.active_agents:
+                                logger.info(f"🆕 New position detected: {p.symbol} - Spawning Agent")
+                                agent = PositionAgent(p.symbol)
+                                agent.start()
+                                self.active_agents[p.symbol] = agent
+                        
+                        # 3. Cleanup stopped/dead agents
+                        for symbol, agent in list(self.active_agents.items()):
+                            if not agent._is_running:
+                                logger.info(f"♻️ Cleaning up stopped agent for {symbol}")
+                                del self.active_agents[symbol]
+                            elif symbol not in current_symbols:
+                                logger.info(f"⚠️ Position {symbol} gone but agent running - Stopping agent")
+                                await agent.stop()
+                                del self.active_agents[symbol]
                                 
             except Exception as e:
-                logger.error(f"Error in monitoring loop: {e}", exc_info=True)
+                logger.error(f"Error in Agent Dispatcher: {e}", exc_info=True)
                 
             await asyncio.sleep(interval)
     

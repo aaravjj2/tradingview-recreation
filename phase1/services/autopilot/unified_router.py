@@ -82,6 +82,7 @@ class StatusResponse(BaseModel):
     avg_loss: float = 0.0
     sharpe_ratio: Optional[float] = None
     last_cycle_at: Optional[str] = None
+    sentiment: Optional[Dict[str, Any]] = None
 
 
 class ConfigUpdate(BaseModel):
@@ -198,6 +199,7 @@ async def get_status():
         avg_loss=0.0,  # Would need trade tracking
         sharpe_ratio=None,
         last_cycle_at=last.timestamp.isoformat() if last else None,
+        sentiment=last.sentiment.to_dict() if last and last.sentiment else None,
     )
 
 
@@ -215,7 +217,7 @@ async def start_autopilot():
         await service.start_background_loop(interval_seconds=60)
         config.continuous_run = True
         save_autopilot_config(config)
-        return {"status": "started", "timestamp": datetime.utcnow().isoformat()}
+        return {"status": "started", "timestamp": datetime.now().isoformat()}
     except Exception as e:
         logger.exception("Failed to start autopilot")
         raise HTTPException(status_code=500, detail=str(e))
@@ -235,7 +237,7 @@ async def stop_autopilot():
         await service.stop_background_loop()
         config.continuous_run = False
         save_autopilot_config(config)
-        return {"status": "stopped", "timestamp": datetime.utcnow().isoformat()}
+        return {"status": "stopped", "timestamp": datetime.now().isoformat()}
     except Exception as e:
         logger.exception("Failed to stop autopilot")
         raise HTTPException(status_code=500, detail=str(e))
@@ -306,7 +308,30 @@ async def get_kill_switch_status():
     engine = get_unified_engine()
     return {
         "active": engine.kill_switch_active,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@router.get("/agents")
+async def get_active_agents():
+    """Get status of all active PositionAgents."""
+    from .service import get_autopilot_service
+    service = get_autopilot_service()
+    
+    agents = []
+    for symbol, agent in service.active_agents.items():
+        agents.append({
+            "symbol": symbol,
+            "running": agent._is_running,
+            "interval": agent.interval,
+            "last_check": datetime.now().isoformat(), # Placeholder, agent should track this
+            "status": "watching" if agent._is_running else "stopped"
+        })
+    
+    return {
+        "agents": agents,
+        "count": len(agents),
+        "monitoring_active": service._monitoring_task is not None and not service._monitoring_task.done()
     }
 
 
@@ -463,6 +488,40 @@ async def get_positions():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/positions/{symbol}/close")
+async def close_position(symbol: str, reason: str = "manual_panic"):
+    """
+    Force close a position immediately (Panic Sell).
+    
+    Args:
+        symbol: The symbol to close (e.g. AAPL or detailed option symbol)
+        reason: Reason for closure
+    """
+    from .alpaca_client import get_alpaca_client
+    
+    logger.warning(f"🚨 PANIC CLOSE TRIGGERED for {symbol} (reason={reason})")
+    
+    try:
+        client = get_alpaca_client()
+        # Alpaca close_position works for both equity and option symbols
+        order = await client.close_position(symbol)
+        
+        if order:
+            logger.info(f"Panic close order submitted: {order.id}")
+            return {
+                "status": "submitted",
+                "order_id": order.id,
+                "symbol": symbol,
+                "message": "Panic close order submitted successfully"
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Failed to close position (no order returned)")
+            
+    except Exception as e:
+        logger.error(f"Panic close failed for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Panic close failed: {str(e)}")
+
+
 @router.get("/run/{run_id}")
 async def get_run(run_id: str):
     """Get a specific run artifact."""
@@ -530,7 +589,7 @@ async def health_check():
     
     return HealthResponse(
         status="ok",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now().isoformat(),
         alpaca_connected=True,  # TODO: Real check
         websocket_connected=True,  # TODO: Real check
         news_provider=provider.provider_name,
@@ -913,31 +972,62 @@ async def get_proposals():
 async def get_report():
     """Get daily performance report."""
     engine = get_unified_engine()
+    from .config import get_autopilot_config
+    config = get_autopilot_config()
+    
+    # Calculate daily stats from run history (today)
+    today = datetime.now().date()
+    todays_runs = [r for r in engine._run_history if r.timestamp.date() == today]
+    
+    trades_opened = sum(r.orders_filled for r in todays_runs)
+    trades_closed = sum(r.exits_executed for r in todays_runs)
+    
+    # Get P&L estimates (approximate for V1)
+    realized_pnl = 0.0
+    unrealized_pnl = 0.0
+    
+    try:
+        from .alpaca_client import get_alpaca_client
+        client = get_alpaca_client()
+        account = await client.get_account()
+        if account:
+            # Approx P&L for the day
+            day_pnl = float(account.equity) - float(account.last_equity)
+            unrealized_pnl = day_pnl # Grouping it all here for now
+    except Exception:
+        pass
+        
+    report = {
+        "realized_pnl": realized_pnl,
+        "unrealized_pnl": unrealized_pnl,
+        "daily_loss_used": abs(min(0, realized_pnl)),
+        "daily_loss_remaining": config.risk_limits.max_daily_loss - abs(min(0, realized_pnl)),
+        "total_open_risk": 0.0, # TODO: Sum max_loss from positions
+        "max_open_risk": config.risk_limits.max_total_risk,
+        "trades_opened": trades_opened,
+        "trades_closed": trades_closed,
+        "monitoring_passes": len(todays_runs)
+    }
     
     # Get basic stats from last run if available
+    last_run_data = None
     if engine.last_run:
-        return {
-            "last_run": {
-                "run_id": engine.last_run.run_id,
-                "timestamp": engine.last_run.timestamp.isoformat(),
-                "success": engine.last_run.success,
-                "duration_ms": engine.last_run.duration_ms,
-                "candidates_generated": engine.last_run.candidates_generated,
-                "orders_filled": engine.last_run.orders_filled,
-            },
-            "summary": {
-                "total_runs": 1,
-                "successful_runs": 1 if engine.last_run.success else 0,
-                "total_orders": engine.last_run.orders_filled,
-            }
+        last_run_data = {
+            "run_id": engine.last_run.run_id,
+            "timestamp": engine.last_run.timestamp.isoformat(),
+            "success": engine.last_run.success,
+            "duration_ms": engine.last_run.duration_ms,
+            "candidates_generated": engine.last_run.candidates_generated,
+            "orders_filled": engine.last_run.orders_filled,
         }
-    
+        
     return {
-        "last_run": None,
+        "report": report,
+        "last_run": last_run_data,
         "summary": {
-            "total_runs": 0,
-            "successful_runs": 0,
-            "total_orders": 0,
+            "total_runs": len(engine._run_history),
+            "successful_runs": sum(1 for r in engine._run_history if r.success),
+            "total_orders": sum(r.orders_filled for r in engine._run_history),
         }
     }
 

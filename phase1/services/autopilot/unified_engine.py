@@ -61,8 +61,10 @@ class ExitReason(str, Enum):
     STOP_LOSS = "stop_loss"
     TIME_STOP = "time_stop"
     DTE_THRESHOLD = "dte_threshold"
+    TRAILING_STOP = "trailing_stop"
     EARNINGS_SHOCK = "earnings_shock"
     NEWS_SHOCK = "news_shock"
+    EOD_FLATTEN = "eod_flatten"  # v1: 0DTE positions flattened before close
     MANUAL_CLOSE = "manual_close"
     KILL_SWITCH = "kill_switch"
     RISK_LIMIT = "risk_limit"
@@ -294,12 +296,12 @@ class ThinkLog:
     def __init__(self, run_id: str):
         self.run_id = run_id
         self.entries: List[ThinkLogEntry] = []
-        self._start_time = datetime.utcnow()
+        self._start_time = datetime.now()
     
     def think(self, phase: str, thought: str, details: Optional[Dict] = None, emoji: str = "💭"):
         """Add a thought to the log."""
         entry = ThinkLogEntry(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(),
             phase=phase,
             thought=thought,
             details=details,
@@ -555,6 +557,11 @@ class UnifiedAutopilotEngine:
         self._is_running = False
         self._kill_switch = False
         self._current_phase = CyclePhase.INIT
+        self._paper_verified = False
+        
+        # Components
+        from .news_sentiment import SentimentEngine
+        self.sentiment_engine = SentimentEngine()
         
         # History
         self._run_history: List[RunArtifact] = []
@@ -569,7 +576,49 @@ class UnifiedAutopilotEngine:
         self._news_provider = None  # Finnhub/yfinance provider
         self._position_store = None  # Internal position metadata store
         
+        # Verify paper-only on init
+        self._verify_paper_only()
+        
         logger.info("UnifiedAutopilotEngine initialized")
+    
+    def _verify_paper_only(self) -> bool:
+        """
+        Verify that the Alpaca endpoint is paper-only.
+        REFUSES TO TRADE if not paper endpoint.
+        """
+        import os
+        endpoint = os.environ.get("ALPACA3_ENDPOINT", os.environ.get("APCA_API_BASE_URL", ""))
+        
+        # Check for paper indicators
+        is_paper = (
+            "paper" in endpoint.lower() or
+            endpoint == "" or  # Default to paper if not set
+            endpoint.startswith("https://paper-api")
+        )
+        
+        if not is_paper:
+            logger.critical(f"REFUSING TO TRADE: Endpoint is NOT paper! endpoint={endpoint}")
+            self._kill_switch = True
+            self._paper_verified = False
+            
+            # Log incident
+            try:
+                from .repository import get_autopilot_repository, IncidentSeverity
+                repo = get_autopilot_repository()
+                repo.create_incident(
+                    severity=IncidentSeverity.CRITICAL,
+                    category="kill_switch",
+                    title="Non-paper endpoint detected - kill switch activated",
+                    description=f"Attempted to trade on non-paper endpoint: {endpoint}",
+                )
+            except Exception as e:
+                logger.error(f"Failed to log incident: {e}")
+            
+            return False
+        
+        self._paper_verified = True
+        logger.info(f"Paper-only verified: endpoint={endpoint or 'default-paper'}")
+        return True
     
     # -------------------------------------------------------------------------
     # Properties
@@ -638,7 +687,7 @@ class UnifiedAutopilotEngine:
         return {
             "kill_switch_active": True,
             "positions_closed": closed_count,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now().isoformat(),
         }
     
     def deactivate_kill_switch(self) -> Dict[str, Any]:
@@ -647,7 +696,7 @@ class UnifiedAutopilotEngine:
         logger.info("Kill switch deactivated")
         return {
             "kill_switch_active": False,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now().isoformat(),
         }
     
     # -------------------------------------------------------------------------
@@ -662,7 +711,7 @@ class UnifiedAutopilotEngine:
         if self._is_running:
             return {
                 "status": "already_running",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now().isoformat(),
             }
         
         self._is_running = True
@@ -670,7 +719,7 @@ class UnifiedAutopilotEngine:
         
         return {
             "status": "started",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now().isoformat(),
         }
     
     def stop(self) -> Dict[str, Any]:
@@ -678,7 +727,7 @@ class UnifiedAutopilotEngine:
         if not self._is_running:
             return {
                 "status": "already_stopped",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now().isoformat(),
             }
         
         self._is_running = False
@@ -686,7 +735,7 @@ class UnifiedAutopilotEngine:
         
         return {
             "status": "stopped",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now().isoformat(),
         }
     
     # -------------------------------------------------------------------------
@@ -696,7 +745,7 @@ class UnifiedAutopilotEngine:
     def _generate_run_id(self) -> str:
         """Generate unique run ID for tracing."""
         self._cycle_counter += 1
-        ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d%H%M%S")
         return f"UAC-{ts}-{self._cycle_counter:04d}"
     
     # -------------------------------------------------------------------------
@@ -736,7 +785,7 @@ class UnifiedAutopilotEngine:
             RunArtifact with complete audit trail
         """
         run_id = self._generate_run_id()
-        start_time = datetime.utcnow()
+        start_time = datetime.now()
         
         # Initialize ThinkLog for this run
         think = ThinkLog(run_id)
@@ -752,6 +801,14 @@ class UnifiedAutopilotEngine:
             if self._kill_switch and not force:
                 think.alert("Kill switch is active - aborting cycle")
                 artifact.add_no_action_reason("Kill switch is active")
+                artifact.success = False
+                artifact.think_log = think.to_list()
+                return artifact
+            
+            # Paper-only guard (v1 non-negotiable)
+            if not self._paper_verified and not force:
+                think.alert("Paper verification failed - refusing to trade")
+                artifact.add_no_action_reason("Paper-only verification failed")
                 artifact.success = False
                 artifact.think_log = think.to_list()
                 return artifact
@@ -790,30 +847,11 @@ class UnifiedAutopilotEngine:
             artifact.health = await self._check_health()
             think.observe(f"Alpaca connected: {artifact.health.alpaca_connected}, latency: {artifact.health.alpaca_latency_ms:.0f}ms")
             
-            # Phase 3: Monitoring (EXITS FIRST) - Isolated error handling
-            self._set_phase(CyclePhase.MONITORING)
-            think.monitor(f"Evaluating {len(positions)} positions for exit conditions...")
-            monitoring_actions = []
-            try:
-                monitoring_actions = await self._run_monitoring_pass(
-                    positions, artifact.market_context, artifact.sentiment, dry_run
-                )
-                artifact.monitoring_actions = monitoring_actions
-                artifact.exits_triggered = sum(1 for a in monitoring_actions if a.action == "exit")
-                artifact.exits_executed = sum(1 for a in monitoring_actions if a.success)
-                
-                if monitoring_actions:
-                    for action in monitoring_actions:
-                        if action.action == "exit":
-                            think.decide(f"EXIT {action.symbol}", f"{action.reason.value} triggered (value={action.trigger_value:.1f}%, threshold={action.threshold:.1f}%)")
-                        else:
-                            think.monitor(f"{action.symbol}: {action.reason.value} detected but not urgent")
-                else:
-                    think.monitor("No exit conditions met - all positions within thresholds")
-            except Exception as monitoring_error:
-                think.alert(f"Monitoring phase error (non-fatal): {str(monitoring_error)}")
-                logger.error(f"Monitoring phase failed: {monitoring_error}", exc_info=True)
-                # Continue to next phase - monitoring errors shouldn't block trading
+            # Phase 3: Monitoring (REMOVED - Handled by PositionAgents)
+            # self._set_phase(CyclePhase.MONITORING)
+            # Logic moved to PositionAgent for distributed monitoring
+            artifact.exits_triggered = 0
+            artifact.exits_executed = 0
             
             # Phase 4: Candidate Generation (if budget available)
             self._set_phase(CyclePhase.CANDIDATE_GENERATION)
@@ -894,6 +932,16 @@ class UnifiedAutopilotEngine:
                         artifact.validation_errors.extend(errors)
                 
                 think.decide(f"{len(validated)} candidates validated", f"{len(selected) - len(validated)} rejected by gates")
+                
+                # Generate explanations for validated candidates (post-decision)
+                for candidate in validated:
+                    try:
+                        explanation = await self._explain_decision(candidate)
+                        candidate["explanation"] = explanation
+                        think.think("EXPLAIN", f"Rationale for {candidate.get('symbol')}: {explanation}", emoji="💡")
+                    except Exception as e:
+                        logger.warning(f"Failed to generate explanation for {candidate.get('symbol')}: {e}")
+                        candidate["explanation"] = "Explanation generation failed."
             
             # Phase 7: Execution
             self._set_phase(CyclePhase.EXECUTION)
@@ -939,7 +987,7 @@ class UnifiedAutopilotEngine:
             # Complete
             self._set_phase(CyclePhase.COMPLETE)
             artifact.success = True
-            elapsed = (datetime.utcnow() - start_time).total_seconds()
+            elapsed = (datetime.now() - start_time).total_seconds()
             think.think("COMPLETE", f"Cycle finished in {elapsed:.2f}s - {artifact.orders_filled} orders filled, {artifact.exits_executed} exits executed", emoji="✅")
             
         except Exception as e:
@@ -952,7 +1000,7 @@ class UnifiedAutopilotEngine:
         
         finally:
             self._is_running = False
-            artifact.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            artifact.duration_ms = (datetime.now() - start_time).total_seconds() * 1000
             artifact.think_log = think.to_list()  # Save think log to artifact
             
             # Broadcast cycle complete
@@ -965,7 +1013,7 @@ class UnifiedAutopilotEngine:
                     "duration_ms": artifact.duration_ms,
                     "candidates": artifact.candidates_generated,
                     "orders": artifact.orders_filled,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now().isoformat()
                 }))
             except Exception:
                 pass
@@ -994,7 +1042,7 @@ class UnifiedAutopilotEngine:
         self._current_phase = phase
         if self._on_phase_change:
             try:
-                self._on_phase_change(phase, {"timestamp": datetime.utcnow().isoformat()})
+                self._on_phase_change(phase, {"timestamp": datetime.now().isoformat()})
             except Exception:
                 pass
         
@@ -1004,7 +1052,7 @@ class UnifiedAutopilotEngine:
             ws = get_autopilot_ws_manager()
             asyncio.create_task(ws.broadcast("STATUS_UPDATE", {
                 "phase": phase.value,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now().isoformat()
             }))
         except Exception:
             pass
@@ -1021,28 +1069,31 @@ class UnifiedAutopilotEngine:
         clock = await client.get_clock()
         
         return MarketContext(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(),
             market_open=clock.is_open if clock else self._is_market_open(),
             regime="neutral",  # TODO: Calculate from VIX/SPY
         )
     
     async def _refresh_sentiment_data(self) -> SentimentSnapshot:
         """Refresh news/sentiment data from providers."""
-        from .news_provider import get_news_provider
-        
         try:
-            provider = get_news_provider()
-            market_sent = await provider.get_market_sentiment()
+            # Get Global Market Sentiment
+            market_sent = await self.sentiment_engine.get_market_sentiment()
+            
+            # Simple mapping of market sentiment to 'news_velocity' or similar field
+            # For now, we store the score in sentiment_scores with key 'SPY' (proxy for market)
             
             return SentimentSnapshot(
-                timestamp=datetime.utcnow(),
-                provider=provider.provider_name,
-                news_velocity=market_sent.news_velocity,
+                timestamp=datetime.now(),
+                provider="finnhub-ensemble",
+                news_velocity=market_sent.bucket.value, # Store bucket name here for display
+                sentiment_scores={"MARKET": market_sent.sentiment_score},
+                symbols_checked=["MARKET"]
             )
         except Exception as e:
             logger.warning(f"Failed to get sentiment: {e}")
             return SentimentSnapshot(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(),
                 provider="error",
             )
     
@@ -1100,7 +1151,7 @@ class UnifiedAutopilotEngine:
         provider = get_news_provider()
         
         return HealthSnapshot(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(),
             alpaca_connected=connected,
             alpaca_latency_ms=latency,
             websocket_connected=True,  # TODO: Real check
@@ -1130,7 +1181,7 @@ class UnifiedAutopilotEngine:
         paper_positions = []
         for meta in manager._store.all():
             # Simulate current profit/loss based on time decay
-            hours_held = (datetime.utcnow() - meta.opened_at).total_seconds() / 3600
+            hours_held = (datetime.now() - meta.opened_at).total_seconds() / 3600
             
             # Simulate price movement: options decay over time (theta)
             # ~50% profit target in days, with some randomness
@@ -1356,14 +1407,57 @@ class UnifiedAutopilotEngine:
             gates.append(ValidationGate.EARNINGS_BLACKOUT)
             errors.append(f"Earnings blackout for {symbol}")
         
-        # Check sentiment
+        # Check sentiment (Strict Gating)
         if hasattr(sentiment, 'sentiment_scores'):
+            # Symbol specific score
             score = sentiment.sentiment_scores.get(symbol, 0)
-            if score < -0.5:
+            
+            # Global Market Score
+            market_score = sentiment.sentiment_scores.get("MARKET", 0)
+            
+            # CIRCUIT BREAKER LOGIC
+            # If Market is VERY BEARISH (<-0.4), Block Bullish Strategies
+            if market_score < -0.4:
+                if candidate.get("template") in ["long_call", "put_credit_spread", "call_debit_spread"]:
+                    gates.append(ValidationGate.NEWS_SENTIMENT)
+                    errors.append(f"Global Sentiment Circuit Breaker: Market is VERY BEARISH ({market_score:.2f})")
+            
+            # If Market is VERY BULLISH (>0.4), Block Bearish Strategies
+            elif market_score > 0.4:
+                 if candidate.get("template") in ["long_put", "call_credit_spread", "put_debit_spread"]:
+                    gates.append(ValidationGate.NEWS_SENTIMENT)
+                    errors.append(f"Global Sentiment Circuit Breaker: Market is VERY BULLISH ({market_score:.2f})")
+            
+            # Symbol specific check (if available)
+            if score <= -0.2 and candidate.get("template") in ["long_call", "put_credit_spread"]:
                 gates.append(ValidationGate.NEWS_SENTIMENT)
-                errors.append(f"Negative sentiment for {symbol}: {score}")
+                errors.append(f"Symbol Sentiment {score:.2f} is bearish")
+        
+        # Check shock headlines
+        if hasattr(sentiment, 'shock_headlines') and sentiment.shock_headlines:
+             # Check if any shock headline is relevant to this symbol
+             # For now, simplistic check: is symbol in headline triggers?
+             # Or global shock logic if defined
+             pass # Logic to be refined based on shock_headlines structure
         
         return len(gates) == 0, gates, errors
+
+    async def _explain_decision(self, candidate: Dict) -> str:
+        """
+        Generate a human-readable explanation for the selected candidate.
+        This is post-decision and does not influence the choice.
+        """
+        # TODO: Connect to LLM service for dynamic explanation
+        # For now, deterministic template
+        symbol = candidate.get("symbol")
+        template = candidate.get("template")
+        score = candidate.get("score", 0)
+        
+        rationale = (
+            f"Selected {symbol} {template} based on strong technical score ({score:.2f}). "
+            f"Market context allows for this strategy. Sentinel checks passed."
+        )
+        return rationale
     
     async def _execute_trades(self, candidates: List[Dict], run_id: str) -> List[OrderRecord]:
         """Execute trades via Alpaca - REAL order submission."""
@@ -1418,7 +1512,7 @@ class UnifiedAutopilotEngine:
                 order_type="market",
                 qty=max(1, int(config.contracts_per_trade)),
                 limit_price=credit,
-                submitted_at=datetime.utcnow(),
+                submitted_at=datetime.now(),
             )
             
             try:
@@ -1489,19 +1583,23 @@ class UnifiedAutopilotEngine:
                     paper_order = broker.submit_order(trade_candidate)
                     
                     if paper_order:
-                        # Execute the order to fill it (submit_order only creates pending order)
-                        paper_order = broker.execute_order(paper_order.order_id)
+                        # For Alpaca, submission is enough. We don't manually execute.
+                        # paper_order = broker.execute_order(paper_order.order_id)
                         
                         order_record.alpaca_order_id = paper_order.order_id
                         order_record.status = paper_order.status.value
-                        order_record.filled_qty = paper_order.filled_quantity if hasattr(paper_order, 'filled_quantity') else len(paper_order.legs)
-                        order_record.filled_avg_price = paper_order.avg_fill_price if hasattr(paper_order, 'avg_fill_price') else None
-                        order_record.filled_at = datetime.utcnow()
+                        order_record.filled_qty = paper_order.filled_qty if hasattr(paper_order, 'filled_qty') else 0
+                        order_record.filled_avg_price = paper_order.filled_avg_price if hasattr(paper_order, 'filled_avg_price') else None
+                        order_record.filled_at = datetime.now()
                         
-                        if paper_order.status.value == "filled":
-                            logger.info(f"✅ ORDER FILLED: {symbol} - ID: {paper_order.order_id} @ ${paper_order.avg_fill_price:.2f}")
+                        # Register position if order is active (filled or pending)
+                        # We need to track metadata even if it's not fully filled yet
+                        valid_statuses = ["filled", "partial_fill", "new", "accepted", "pending_new", "partially_filled"]
+                        if paper_order.status.value in valid_statuses:
+                            status_emoji = "✅" if paper_order.status.value == "filled" else "⏳"
+                            logger.info(f"{status_emoji} ORDER SUBMITTED: {symbol} - ID: {paper_order.order_id} ({paper_order.status.value})")
                             
-                            # Register position for monitoring
+                            # Register position for monitoring (metadata persistence)
                             manager.register_position(
                                 symbol=symbol,
                                 run_id=run_id,
@@ -1511,7 +1609,7 @@ class UnifiedAutopilotEngine:
                                 exit_rules=BrokerExitRule(),
                             )
                         else:
-                            logger.warning(f"⚠️ ORDER NOT FILLED: {symbol} - Status: {paper_order.status.value}")
+                            logger.warning(f"⚠️ ORDER REJECTED/FAILED: {symbol} - Status: {paper_order.status.value}")
                     else:
                         order_record.status = "rejected"
                         order_record.error = "Broker returned no order"
@@ -1562,7 +1660,7 @@ class UnifiedAutopilotEngine:
         client = get_alpaca_client()
         manager = get_broker_position_manager()
         
-        verification = BrokerVerification(timestamp=datetime.utcnow())
+        verification = BrokerVerification(timestamp=datetime.now())
         
         try:
             # Get positions from both sources
@@ -1593,20 +1691,56 @@ class UnifiedAutopilotEngine:
     
     async def _emit_ui_events(self, artifact: RunArtifact):
         """Emit events for UI updates via WebSocket."""
-        # TODO: Implement websocket event emission
-        # This would use the websocket manager to broadcast events
-        logger.debug(f"Would emit UI events for run {artifact.run_id}")
+        try:
+            from ..api.autopilot_websocket import get_autopilot_ws_manager
+            ws = get_autopilot_ws_manager()
+            
+            # 1. Run complete event
+            await ws.broadcast("RUN_COMPLETE", {
+                "run_id": artifact.run_id,
+                "success": artifact.success,
+                "duration_ms": artifact.duration_ms,
+                "candidates_generated": artifact.candidates_generated,
+                "candidates_selected": artifact.candidates_selected,
+                "orders_placed": len(artifact.orders_placed),
+                "orders_filled": artifact.orders_filled,
+                "exits_triggered": artifact.exits_triggered,
+                "exits_executed": artifact.exits_executed,
+                "timestamp": artifact.timestamp.isoformat(),
+            })
+            
+            # 2. Positions update (if we have positions data)
+            if artifact.broker_verification:
+                await ws.broadcast("POSITIONS_UPDATE", {
+                    "count": artifact.broker_verification.positions_matched,
+                    "mismatched": artifact.broker_verification.positions_mismatched,
+                    "timestamp": datetime.now().isoformat(),
+                })
+            
+            # 3. Monitoring actions (exits)
+            for action in artifact.monitoring_actions:
+                await ws.broadcast("EXIT_SIGNAL", action.to_dict())
+            
+            # 4. Incidents (if any errors)
+            if artifact.error:
+                await ws.broadcast("INCIDENT", {
+                    "severity": "error",
+                    "category": "run_error",
+                    "title": f"Run {artifact.run_id} failed",
+                    "description": artifact.error,
+                    "timestamp": datetime.now().isoformat(),
+                })
+            
+            logger.debug(f"Emitted UI events for run {artifact.run_id}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to emit UI events: {e}")
     
     def _is_market_open(self) -> bool:
-        """Check if market is currently open."""
-        now = datetime.utcnow()
-        # Simplified check - would use proper calendar in production
-        weekday = now.weekday()
-        if weekday >= 5:  # Weekend
-            return False
-        hour = now.hour
-        # Market hours: 9:30 AM - 4:00 PM ET (approximate as 14:30 - 21:00 UTC)
-        return 14 <= hour < 21
+        """Check if market is currently open using real NYSE calendar."""
+        from ..market_calendar import get_market_calendar
+        calendar = get_market_calendar()
+        return calendar.is_market_open()
 
 
 # ============================================================================

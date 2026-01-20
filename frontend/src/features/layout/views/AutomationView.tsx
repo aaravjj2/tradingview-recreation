@@ -78,7 +78,7 @@ function ActivityLogSection({ armed }: { armed: boolean }) {
     const fetchLogs = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/v1/autopilot/status');
+            const res = await fetch('http://127.0.0.1:8000/api/v1/autopilot/status');
             if (!res.ok) throw new Error('Failed to fetch');
             const data = await res.json();
 

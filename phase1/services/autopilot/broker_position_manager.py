@@ -115,6 +115,7 @@ class ExitTrigger(str, Enum):
     TRAILING_STOP = "trailing_stop"
     NEWS_SHOCK = "news_shock"
     EARNINGS_SHOCK = "earnings_shock"
+    EOD_FLATTEN = "eod_flatten"  # v1: Flatten 0DTE at end of day
     MANUAL = "manual"
     KILL_SWITCH = "kill_switch"
 
@@ -509,6 +510,24 @@ class BrokerPositionManager:
                 threshold=0,
                 urgency="immediate",
             ))
+        
+        # EOD Flatten for 0DTE positions (v1 single-leg rule)
+        # Flatten 0DTE positions 30 mins before market close
+        if pos.dte is not None and pos.dte == 0:
+            from ..market_calendar import get_market_calendar
+            calendar = get_market_calendar()
+            time_to_close = calendar.time_to_close()
+            
+            if time_to_close is not None:
+                minutes_to_close = time_to_close.total_seconds() / 60
+                if minutes_to_close <= 30:  # 30 mins before close
+                    signals.append(BrokerExitSignal(
+                        symbol=pos.symbol,
+                        trigger=ExitTrigger.EOD_FLATTEN,
+                        trigger_value=minutes_to_close,
+                        threshold=30.0,
+                        urgency="immediate",
+                    ))
         
         return signals
     

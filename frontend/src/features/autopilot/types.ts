@@ -208,6 +208,12 @@ export interface AutopilotStatus {
     fill_rate: number;
     total_slippage: number;
   };
+  sentiment?: {
+    timestamp: string;
+    provider: string;
+    news_velocity: string;
+    sentiment_scores: Record<string, number>;
+  };
 }
 
 export interface ActivityLogEntry {
@@ -257,4 +263,12 @@ export interface DailyReport {
     no_trade_reasons: string[];
     alerts: string[];
   };
+}
+
+export interface Incident {
+  severity: 'error' | 'critical' | 'warning';
+  category: string;
+  title: string;
+  description: string;
+  timestamp: string;
 }

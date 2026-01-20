@@ -2,14 +2,15 @@ import { create } from 'zustand';
 import type { Candle, WSMessage, Indicator, Drawing, ToolType, IndicatorType } from '../core/types.ts';
 import { WebSocketClient, type WSConnectionState } from '../data/WebSocketClient.ts';
 import { ClockClient, type ClockState } from '../data/ClockClient.ts';
+import { API_BASE } from '../config/api';
 // Core indicator calculators
-import { 
-    calculateSMA, 
-    calculateEMA, 
-    calculateVWAP, 
-    calculateRSI, 
-    calculateMACD, 
-    calculateBollinger, 
+import {
+    calculateSMA,
+    calculateEMA,
+    calculateVWAP,
+    calculateRSI,
+    calculateMACD,
+    calculateBollinger,
     calculateATR,
     // Trend
     calculateIchimoku,
@@ -49,7 +50,9 @@ interface AppState {
     candles: Candle[];
     lastCandle: Candle | null;
     wsClient: WebSocketClient | null;
+    // State
     wsState: WSConnectionState;
+    reconnectAttempts: number;
 
     // Replay State
     replayState: ClockState | null;
@@ -97,6 +100,7 @@ export const useStore = create<AppState>((set, get) => ({
     lastCandle: null,
     wsClient: null,
     wsState: 'DISCONNECTED' as WSConnectionState,
+    reconnectAttempts: 0,
     replayState: null,
     activeIndicators: [],
     drawings: [],
@@ -106,7 +110,7 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const s = (symbol || get().symbol).toUpperCase();
             const tf = timeframe || get().timeframe;
-            const res = await fetch(`http://localhost:8000/api/v1/bars/${s}/${tf}/latest`);
+            const res = await fetch(`${API_BASE}/api/v1/bars/${s}/${tf}/latest`);
             if (!res.ok) return;
             const latest = await res.json();
 
@@ -142,10 +146,13 @@ export const useStore = create<AppState>((set, get) => ({
 
     connect: () => {
         const { symbol, timeframe } = get();
-        const url = `ws://localhost:8000/ws/bars/${symbol}/${timeframe}`;
+        const url = `ws://127.0.0.1:8000/ws/bars/${symbol}/${timeframe}`;
 
-        const onStateChange = (newState: WSConnectionState) => {
-            set({ wsState: newState });
+        const onStateChange = (newState: WSConnectionState, _prev: WSConnectionState, details?: { reconnectAttempts: number }) => {
+            set({
+                wsState: newState,
+                reconnectAttempts: details?.reconnectAttempts ?? 0
+            });
         };
 
         const client = new WebSocketClient(url, get().processMessage, onStateChange);
@@ -281,14 +288,14 @@ export const useStore = create<AppState>((set, get) => ({
 
     addIndicator: (type, period, color) => {
         const id = Math.random().toString(36).substr(2, 9);
-        const ind: Indicator = { 
-            id, 
-            type, 
-            period, 
-            color, 
-            params: {}, 
+        const ind: Indicator = {
+            id,
+            type,
+            period,
+            color,
+            params: {},
             visible: true,
-            data: [] 
+            data: []
         };
         set((state) => ({ activeIndicators: [...state.activeIndicators, ind] }));
         get().recalcIndicators();
@@ -499,7 +506,7 @@ export const useStore = create<AppState>((set, get) => ({
         set((state) => ({ drawings: [...state.drawings, drawing], activeTool: 'cursor' }));
         // Save to backend
         const symbol = get().symbol;
-        fetch(`http://localhost:8000/api/v1/drawings/${symbol}`, {
+        fetch(`${API_BASE}/api/v1/drawings/${symbol}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(drawing)
@@ -509,7 +516,7 @@ export const useStore = create<AppState>((set, get) => ({
     fetchDrawings: async () => {
         const symbol = get().symbol;
         try {
-            const response = await fetch(`http://localhost:8000/api/v1/drawings/${symbol}`);
+            const response = await fetch(`${API_BASE}/api/v1/drawings/${symbol}`);
             if (response.ok) {
                 const data = await response.json();
                 set({ drawings: data.drawings || [] });
@@ -522,7 +529,7 @@ export const useStore = create<AppState>((set, get) => ({
     removeDrawing: (id: string) => {
         const symbol = get().symbol;
         set((state) => ({ drawings: state.drawings.filter(d => d.id !== id) }));
-        fetch(`http://localhost:8000/api/v1/drawings/${symbol}/${id}`, {
+        fetch(`${API_BASE}/api/v1/drawings/${symbol}/${id}`, {
             method: 'DELETE'
         }).catch(console.error);
     }

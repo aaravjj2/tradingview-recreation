@@ -2,9 +2,9 @@
   "mode": "paper",
   "auto_execute": true,
   "paper_equity": 1000.0,
-  "continuous_run": false,
+  "continuous_run": true,
   "focus_symbol": null,
-  "max_symbols_per_cycle": 5,
+  "max_symbols_per_cycle": 1,
   "contracts_per_trade": 10,
   "weekly_expiry_only": true,
   "risk_limits": {

@@ -107,7 +107,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Backend sync
     syncBackendHealth: async () => {
         try {
-            const res = await fetch('http://localhost:8000/health');
+            const res = await fetch('http://127.0.0.1:8000/health');
             if (res.ok) {
                 set((s) => ({
                     providers: {
@@ -148,7 +148,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     syncParityStatus: async () => {
         const { symbol, timeframe } = get();
         try {
-            const res = await fetch(`http://localhost:8000/api/v1/parity/hash/${symbol}/${timeframe}`);
+            const res = await fetch(`http://127.0.0.1:8000/api/v1/parity/hash/${symbol}/${timeframe}`);
             if (!res.ok) {
                 set({ parityMismatch: true });
                 return;

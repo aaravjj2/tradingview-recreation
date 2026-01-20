@@ -3,9 +3,15 @@
  * Main dashboard showing status, portfolio, and controls
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { useAutopilotStore } from '../store';
 import { AutopilotThinkLog } from './AutopilotThinkLog';
+import { AutopilotPositions } from './AutopilotPositions';
+import { UniverseEditor } from './UniverseEditor';
+import { IncidentsPanel } from './IncidentsPanel';
+import { RunHistory } from './RunHistory';
+import { AutopilotAgents } from './AutopilotAgents';
+import { ChartCanvas } from '../../chart/ChartCanvas';
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-US', {
@@ -57,31 +63,6 @@ const PaperModeBanner: React.FC = () => (
   </div>
 );
 
-interface PortfolioCardProps {
-  title: string;
-  value: string;
-  subtitle?: string;
-  trend?: 'up' | 'down' | 'neutral';
-}
-
-const PortfolioCard: React.FC<PortfolioCardProps> = ({ title, value, subtitle, trend }) => {
-  const trendColors = {
-    up: 'text-green-400',
-    down: 'text-red-400',
-    neutral: 'text-gray-400',
-  };
-
-  return (
-    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700" data-testid={`portfolio-card-${title.toLowerCase().replace(/\s/g, '-')}`}>
-      <h3 className="text-gray-400 text-sm font-medium">{title}</h3>
-      <p className={`text-2xl font-bold mt-1 ${trend ? trendColors[trend] : 'text-white'}`}>
-        {value}
-      </p>
-      {subtitle && <p className="text-gray-500 text-xs mt-1">{subtitle}</p>}
-    </div>
-  );
-};
-
 export const AutopilotDashboard: React.FC = () => {
   const {
     config,
@@ -103,6 +84,8 @@ export const AutopilotDashboard: React.FC = () => {
     disconnect,
     connectionStatus,
   } = useAutopilotStore();
+
+  const [showUniverse, setShowUniverse] = useState(false);
 
   useEffect(() => {
     connect();
@@ -144,7 +127,6 @@ export const AutopilotDashboard: React.FC = () => {
   }, [status, pause, resume]);
 
   const pnl = portfolio?.total_pnl ?? 0;
-  const pnlTrend = pnl > 0 ? 'up' : pnl < 0 ? 'down' : 'neutral';
   const equity = (config?.paper_equity ?? 1000) + pnl;
 
   return (
@@ -152,19 +134,51 @@ export const AutopilotDashboard: React.FC = () => {
       <PaperModeBanner />
 
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700">
+      <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">🤖 AI Options Autopilot</h1>
           {status && <StatusBadge state={status.state} killSwitch={status.kill_switch} />}
           <div className={`px-2 py-1 rounded-full text-xs font-bold ${connectionStatus === 'CONNECTED' ? 'bg-green-900 text-green-200 border border-green-700' :
-              connectionStatus === 'CONNECTING' ? 'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse' :
-                'bg-red-900 text-red-200 border border-red-700'
+            connectionStatus === 'CONNECTING' ? 'bg-yellow-900 text-yellow-200 border border-yellow-700 animate-pulse' :
+              'bg-red-900 text-red-200 border border-red-700'
             }`}>
             WS: {connectionStatus}
           </div>
+
+          {status?.sentiment && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-gray-700 rounded-full border border-gray-600" title={`Score: ${status.sentiment.sentiment_scores?.MARKET?.toFixed(2) ?? 'N/A'}`}>
+              <span className="text-xs text-gray-400">MARKET:</span>
+              <span className={`text-xs font-bold ${(status.sentiment.sentiment_scores?.MARKET ?? 0) > 0.4 ? 'text-green-400' :
+                (status.sentiment.sentiment_scores?.MARKET ?? 0) < -0.4 ? 'text-red-400' :
+                  'text-gray-200'
+                }`}>
+                {(status.sentiment.sentiment_scores?.MARKET ?? 0) > 0.4 ? '🐂 BULLISH' :
+                  (status.sentiment.sentiment_scores?.MARKET ?? 0) < -0.4 ? '🐻 BEARISH' :
+                    '⚖️ NEUTRAL'}
+              </span>
+              <span className="text-xs text-gray-500 border-l border-gray-600 pl-2 ml-1">
+                {status.sentiment.news_velocity.toUpperCase()}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="text-sm text-gray-400 mr-4">
+            Equity: <span className="text-white font-mono">{formatCurrency(equity)}</span>
+            <span className={`ml-2 font-mono ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              ({pnl >= 0 ? '+' : ''}{formatCurrency(pnl)})
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowUniverse(!showUniverse)}
+            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded font-medium transition-colors text-sm"
+            data-testid="toggle-universe-btn"
+          >
+            🌎 Universe
+          </button>
+
           <button
             onClick={handlePauseResume}
             disabled={isLoading || status?.kill_switch}
@@ -197,6 +211,13 @@ export const AutopilotDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Universe Editor Modal/Drawer */}
+      {showUniverse && (
+        <div className="absolute top-16 right-4 z-50 w-96 shadow-2xl">
+          <UniverseEditor onClose={() => setShowUniverse(false)} />
+        </div>
+      )}
+
       {/* Error Banner */}
       {error && (
         <div className="bg-red-900 text-red-200 p-3 flex items-center justify-between" data-testid="error-banner">
@@ -205,130 +226,69 @@ export const AutopilotDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Portfolio Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-4">
-        <PortfolioCard
-          title="Paper Equity"
-          value={formatCurrency(equity)}
-          subtitle={`Started: ${formatCurrency(config?.paper_equity ?? 1000)}`}
-        />
-        <PortfolioCard
-          title="Total P&L"
-          value={formatCurrency(pnl)}
-          trend={pnlTrend}
-          subtitle={formatPercent(pnl / (config?.paper_equity ?? 1000))}
-        />
-        <PortfolioCard
-          title="Unrealized P&L"
-          value={formatCurrency(portfolio?.unrealized_pnl ?? 0)}
-          trend={(portfolio?.unrealized_pnl ?? 0) >= 0 ? 'up' : 'down'}
-        />
-        <PortfolioCard
-          title="Realized P&L"
-          value={formatCurrency(portfolio?.realized_pnl ?? 0)}
-          trend={(portfolio?.realized_pnl ?? 0) >= 0 ? 'up' : 'down'}
-        />
-        <PortfolioCard
-          title="Open Positions"
-          value={`${portfolio?.open_positions ?? 0} / ${config?.risk_limits?.max_open_positions ?? 10}`}
-        />
-        <PortfolioCard
-          title="Total Risk"
-          value={formatCurrency(portfolio?.total_risk ?? 0)}
-          subtitle={`Max: ${formatCurrency(config?.risk_limits?.max_total_risk ?? 400)}`}
-        />
+      {/* Incidents Panel */}
+      <div className="px-4 pt-4">
+        <IncidentsPanel />
       </div>
 
-      {/* Greeks Summary */}
-      {portfolio && (
-        <div className="px-4 pb-4">
-          <h2 className="text-lg font-semibold mb-2">Portfolio Greeks</h2>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-gray-800 rounded p-3 text-center">
-              <span className="text-gray-400 text-sm">Delta</span>
-              <p className="text-xl font-mono">{portfolio.net_delta?.toFixed(2) ?? '0.00'}</p>
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Column: Positions & Stats (65%) */}
+        <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700">
+
+          {/* Chart Section */}
+          <div className="h-[400px] border-b border-gray-700 relative">
+            <ChartCanvas />
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-4 gap-4 p-4 border-b border-gray-700 bg-gray-850">
+            <div className="bg-gray-800 p-3 rounded">
+              <span className="text-gray-400 text-xs">Positions</span>
+              <p className="font-bold">{portfolio?.open_positions ?? 0} / {config?.risk_limits?.max_open_positions ?? 10}</p>
             </div>
-            <div className="bg-gray-800 rounded p-3 text-center">
-              <span className="text-gray-400 text-sm">Gamma</span>
-              <p className="text-xl font-mono">{portfolio.net_gamma?.toFixed(4) ?? '0.0000'}</p>
+            <div className="bg-gray-800 p-3 rounded">
+              <span className="text-gray-400 text-xs">Win Rate</span>
+              <p className={`font-bold ${(status?.win_rate ?? 0) >= 0.5 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatPercent(status?.win_rate ?? 0)}
+              </p>
             </div>
-            <div className="bg-gray-800 rounded p-3 text-center">
-              <span className="text-gray-400 text-sm">Theta</span>
-              <p className="text-xl font-mono">{portfolio.net_theta?.toFixed(2) ?? '0.00'}</p>
+            <div className="bg-gray-800 p-3 rounded">
+              <span className="text-gray-400 text-xs">Net Delta</span>
+              <p className="font-bold font-mono">{portfolio?.net_delta?.toFixed(2) ?? '0.00'}</p>
             </div>
-            <div className="bg-gray-800 rounded p-3 text-center">
-              <span className="text-gray-400 text-sm">Vega</span>
-              <p className="text-xl font-mono">{portfolio.net_vega?.toFixed(2) ?? '0.00'}</p>
+            <div className="bg-gray-800 p-3 rounded">
+              <span className="text-gray-400 text-xs">Net Theta</span>
+              <p className="font-bold font-mono">{portfolio?.net_theta?.toFixed(2) ?? '0.00'}</p>
+            </div>
+          </div>
+
+          {/* Positions Table */}
+          <div className="flex-1 overflow-hidden">
+            <AutopilotPositions />
+          </div>
+        </div>
+
+        {/* Right Column: Activity & Logs (35%) */}
+        <div className="w-[400px] flex flex-col bg-gray-850">
+          {/* Run History (Top Half) */}
+          <div className="h-1/2 border-b border-gray-700 flex flex-col">
+            <div className="p-4 pb-0">
+              <AutopilotAgents />
+            </div>
+            <RunHistory />
+          </div>
+
+          {/* Think Log (Bottom Half) */}
+          <div className="h-1/2 flex flex-col">
+            <h3 className="text-sm font-semibold text-gray-300 px-3 py-2 bg-gray-800 border-b border-gray-700">
+              🧠 Think Engine
+            </h3>
+            <div className="flex-1 overflow-hidden">
+              <AutopilotThinkLog />
             </div>
           </div>
         </div>
-      )}
-
-      {/* Mode & Config Info */}
-      <div className="px-4 pb-4">
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <h2 className="text-lg font-semibold mb-2">Configuration</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="text-gray-400">Mode:</span>
-              <span className="ml-2 font-medium text-blue-400">{config?.mode ?? 'auto'}</span>
-            </div>
-            <div>
-              <span className="text-gray-400">LLM:</span>
-              <span className="ml-2 font-medium">{config?.llm_enabled ? '✅ Enabled' : '❌ Disabled'}</span>
-            </div>
-            <div>
-              <span className="text-gray-400">Templates:</span>
-              <span className="ml-2 font-medium">{config?.allowed_templates?.length ?? 5} active</span>
-            </div>
-            <div>
-              <span className="text-gray-400">Last Cycle:</span>
-              <span className="ml-2 font-medium">{status?.last_cycle_at ?? 'Never'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      {status && (
-        <div className="px-4 pb-4">
-          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 className="text-lg font-semibold mb-2">Session Stats</h2>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-sm">
-              <div>
-                <span className="text-gray-400">Cycles:</span>
-                <span className="ml-2 font-bold">{status.cycles_completed}</span>
-              </div>
-              <div>
-                <span className="text-gray-400">Trades:</span>
-                <span className="ml-2 font-bold">{status.trades_executed}</span>
-              </div>
-              <div>
-                <span className="text-gray-400">Win Rate:</span>
-                <span className={`ml-2 font-bold ${status.win_rate >= 0.5 ? 'text-green-400' : 'text-red-400'}`}>
-                  {formatPercent(status.win_rate)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-400">Avg Win:</span>
-                <span className="ml-2 font-bold text-green-400">{formatCurrency(status.avg_win)}</span>
-              </div>
-              <div>
-                <span className="text-gray-400">Avg Loss:</span>
-                <span className="ml-2 font-bold text-red-400">{formatCurrency(status.avg_loss)}</span>
-              </div>
-              <div>
-                <span className="text-gray-400">Sharpe:</span>
-                <span className="ml-2 font-bold">{status.sharpe_ratio?.toFixed(2) ?? 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Think Engine Log */}
-      <div className="px-4 pb-4">
-        <AutopilotThinkLog />
       </div>
     </div>
   );

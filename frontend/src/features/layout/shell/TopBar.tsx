@@ -3,6 +3,27 @@ import { ModeBadge } from '../../../ui/ModeBadge';
 import { Button } from '../../../ui/Button';
 import { StatusIndicator, type ConnectionStatus } from '../../../ui/StatusIndicator';
 import { useAppStore, type ProviderName } from '../../../state/appStore';
+import { useStore } from '../../../state/store';
+
+function DataFeedStatus() {
+    const { wsState, reconnectAttempts } = useStore();
+
+    let label = 'Data Feed';
+    if (wsState === 'CONNECTING' && reconnectAttempts > 0) {
+        label = `Reconnecting (${reconnectAttempts})`;
+    } else if (wsState === 'DISCONNECTED' && reconnectAttempts > 0) {
+        // Show attempts even if disconnected (waiting to retry)
+        label = `Offline (${reconnectAttempts})`;
+    }
+
+    return (
+        <StatusIndicator
+            status={wsState === 'CONNECTING' ? 'connecting' : (wsState === 'CONNECTED' ? 'connected' : (wsState === 'DEGRADED' ? 'degraded' : 'disconnected'))}
+            label={label}
+            size="sm"
+        />
+    );
+}
 
 export function TopBar() {
     const { mode, symbol, timeframe, providers, marketTime, replayTime, isReplayPlaying, setReplayPlaying } = useAppStore();
@@ -46,7 +67,7 @@ export function TopBar() {
                 );
             default:
                 return (
-                    <Button size="sm" variant="primary" className="gap-2">
+                    <Button size="sm" variant="primary" className="gap-2" data-testid="start-strategy-btn">
                         Start Strategy
                     </Button>
                 );
@@ -108,6 +129,11 @@ export function TopBar() {
                         size="sm"
                     />
                 </div>
+
+                <div className="h-4 w-px bg-border" />
+
+                {/* Data Feed Status */}
+                <DataFeedStatus />
 
                 <div className="h-4 w-px bg-border" />
 

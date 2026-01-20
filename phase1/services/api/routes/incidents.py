@@ -80,3 +80,40 @@ async def export_incident(incident_id: str):
     if not bundle:
         raise HTTPException(status_code=404, detail="Incident not found")
     return bundle
+
+
+# ============================================================================
+# OPERATIONAL INCIDENTS (System Alerts)
+# ============================================================================
+
+from ...autopilot.repository import get_autopilot_repository
+
+@router.get("/alerts")
+async def list_alerts(unresolved_only: bool = False, limit: int = 100):
+    """List system/operational incidents (alerts)."""
+    repo = get_autopilot_repository()
+    incidents = repo.list_incidents(unresolved_only=unresolved_only, limit=limit)
+    return [
+        {
+            "id": i.id,
+            "severity": i.severity,
+            "category": i.category,
+            "title": i.title,
+            "description": i.description,
+            "run_id": i.run_id,
+            "created_at": i.created_at.isoformat(),
+            "resolved": i.resolved,
+            "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
+            "resolution_note": i.resolution_note
+        }
+        for i in incidents
+    ]
+
+@router.post("/alerts/{incident_id}/resolve")
+async def resolve_alert(incident_id: str, note: Optional[str] = None):
+    """Resolve a system incident."""
+    repo = get_autopilot_repository()
+    incident = repo.resolve_incident(incident_id, note=note)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return {"status": "resolved", "resolved_at": incident.resolved_at.isoformat()}

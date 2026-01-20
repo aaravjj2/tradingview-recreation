@@ -14,7 +14,7 @@ import type {
   ActivityLogEntry,
   DailyReport,
   AutopilotStatus,
-
+  Incident,
 } from './types';
 import { autopilotApi } from './api';
 
@@ -37,6 +37,8 @@ interface AutopilotStore {
   logs: ActivityLogEntry[]; // This remains for historical API logs
   thinkLog: ThinkLogEntry[]; // New real-time log
   lastCycle: CycleResult | null;
+  runs: CycleResult[]; // History of recent runs
+  incidents: Incident[]; // Active or recent incidents
   dailyReport: DailyReport | null;
   reportMarkdown: string;
 
@@ -59,6 +61,8 @@ interface AutopilotStore {
   resume: () => Promise<void>;
   fetchDailyReport: (date?: string) => Promise<void>;
   clearError: () => void;
+  dismissIncident: (index: number) => void;
+  closePosition: (symbol: string) => Promise<void>;
 
   // WebSocket
   ws: WebSocketClient | null;
@@ -77,6 +81,8 @@ export const useAutopilotStore = create<AutopilotStore>()(
     logs: [],
     thinkLog: [],
     lastCycle: null,
+    runs: [],
+    incidents: [],
     dailyReport: null,
     reportMarkdown: '',
     isLoading: false,
@@ -168,6 +174,11 @@ export const useAutopilotStore = create<AutopilotStore>()(
         const { cycle } = await autopilotApi.triggerRun(force);
         set((state) => {
           state.lastCycle = cycle;
+          // Add to local runs history
+          if (cycle) {
+            state.runs.unshift(cycle);
+            if (state.runs.length > 50) state.runs = state.runs.slice(0, 50);
+          }
           state.isLoading = false;
         });
         // Refresh positions after run
@@ -253,6 +264,37 @@ export const useAutopilotStore = create<AutopilotStore>()(
       set((state) => { state.error = null; });
     },
 
+    dismissIncident: (index) => {
+      set((state) => {
+        state.incidents.splice(index, 1);
+      });
+    },
+
+    closePosition: async (symbol: string) => {
+      set((state) => { state.isLoading = true; state.error = null; });
+      try {
+        await autopilotApi.closePosition(symbol);
+
+        // Log to think log immediately
+        set((state) => {
+          state.thinkLog.push({
+            timestamp: new Date().toISOString(),
+            phase: 'MANUAL',
+            thought: `Panic close triggered for ${symbol}`,
+            emoji: '🚨'
+          });
+        });
+
+        // Refresh positions
+        await get().fetchPositions('open');
+      } catch (err) {
+        set((state) => {
+          state.error = err instanceof Error ? err.message : 'Failed to close position';
+          state.isLoading = false;
+        });
+      }
+    },
+
     connect: () => {
       if (get().ws) return;
 
@@ -271,19 +313,61 @@ export const useAutopilotStore = create<AutopilotStore>()(
               }
             } else if (msg.type === 'STATUS_UPDATE') {
               if (state.status) {
-                // Determine running state from phase
-                // This is a simplification; status object is complex
-                // We might need to fetch full status or just patch phase
+                // Partial update if possible, or trigger fetch
+                get().fetchStatus();
               }
-            } else if (msg.type === 'CYCLE_COMPLETE') {
-              // Refresh data
+            } else if (msg.type === 'RUN_COMPLETE') {
+              // Add to runs history
+              state.runs.unshift(msg.data);
+              if (state.runs.length > 50) state.runs = state.runs.slice(0, 50);
+
+              // Refresh status and positions
               get().fetchStatus();
               get().fetchPositions('open');
+
+              // Add to think log
+              state.thinkLog.push({
+                timestamp: new Date().toISOString(),
+                phase: 'COMPLETE',
+                thought: `Run ${msg.data.run_id} completed (Success: ${msg.data.success})`,
+                emoji: msg.data.success ? '✅' : '❌'
+              });
+            } else if (msg.type === 'INCIDENT') {
+              state.incidents.push(msg.data);
+              state.thinkLog.push({
+                timestamp: new Date().toISOString(),
+                phase: 'INCIDENT',
+                thought: `${msg.data.severity.toUpperCase()}: ${msg.data.title}`,
+                emoji: '🚨',
+                details: msg.data
+              });
+            } else if (msg.type === 'EXIT_SIGNAL') {
+              state.thinkLog.push({
+                timestamp: new Date().toISOString(),
+                phase: 'MONITOR',
+                thought: `Exit Signal: ${msg.data.symbol} - ${msg.data.trigger} (${msg.data.urgency})`,
+                emoji: '🔔',
+                details: msg.data
+              });
+            } else if (msg.type === 'POSITIONS_UPDATE') {
+              // Just trigger a refresh if mismatched > 0
+              if (msg.data.mismatched > 0) {
+                state.thinkLog.push({
+                  timestamp: new Date().toISOString(),
+                  phase: 'BROKER',
+                  thought: `Position mismatch detected: ${msg.data.mismatched} positions differ from Alpaca`,
+                  emoji: '⚠️'
+                });
+                get().fetchPositions('open');
+              }
             }
           });
         },
-        (stateStr) => {
-          set(state => { state.connectionStatus = stateStr; });
+        (stateStr, _prev, _details) => {
+          set(state => {
+            state.connectionStatus = stateStr;
+            // We could track details.reconnectAttempts here too if needed
+          });
         }
       );
 

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../ui/utils';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = '/api/v1';
 
 interface Order {
     id: string;
@@ -273,8 +273,8 @@ export function OrdersView() {
                                 <td className="px-4 py-2 text-right tabular-nums text-text">{order.qty}</td>
                                 <td className="px-4 py-2 text-right tabular-nums text-text">{order.filled_qty}</td>
                                 <td className="px-4 py-2 text-right tabular-nums text-text">
-                                    {order.avg_fill_price ? `$${order.avg_fill_price.toFixed(2)}` : 
-                                     order.limit_price ? `$${order.limit_price.toFixed(2)}` : '-'}
+                                    {order.avg_fill_price ? `$${order.avg_fill_price.toFixed(2)}` :
+                                        order.limit_price ? `$${order.limit_price.toFixed(2)}` : '-'}
                                 </td>
                                 <td className="px-4 py-2 text-center">
                                     <span className={cn(

@@ -2,7 +2,9 @@
  * Centralized API client for backend integration.
  */
 
-const API_BASE = 'http://localhost:8000/api/v1';
+import { API_BASE } from '../config/api';
+
+const API_V1 = `${API_BASE}/api/v1`;
 
 export interface ParityStatus {
     symbol: string;
@@ -66,7 +68,7 @@ export const ApiClient = {
     // Health
     async checkHealth(): Promise<HealthResponse> {
         try {
-            const res = await fetch(`http://localhost:8000/health`);
+            const res = await fetch(`${API_BASE}/health`);
             if (!res.ok) return { status: 'unhealthy' };
             return { status: 'healthy' };
         } catch {
@@ -77,7 +79,7 @@ export const ApiClient = {
     // Ingestion provider status
     async getProviderStatus(): Promise<{ provider: string | null; running: boolean }> {
         try {
-            const res = await fetch(`http://localhost:8000/api/v1/ingest/provider-status`);
+            const res = await fetch(`${API_V1}/ingest/provider-status`);
             if (!res.ok) return { provider: null, running: false };
             return res.json();
         } catch {
@@ -87,7 +89,7 @@ export const ApiClient = {
 
     // Parity
     async getParityHash(symbol: string, timeframe: string): Promise<ParityStatus> {
-        const res = await fetch(`${API_BASE}/parity/hash/${symbol}/${timeframe}`);
+        const res = await fetch(`${API_V1}/parity/hash/${symbol}/${timeframe}`);
         if (!res.ok) throw new Error('Failed to fetch parity hash');
         return res.json();
     },
@@ -104,7 +106,7 @@ export const ApiClient = {
         const formData = new FormData();
         formData.append('file', csvFile);
 
-        const res = await fetch(`${API_BASE}/parity/compare/${symbol}/${timeframe}`, {
+        const res = await fetch(`${API_V1}/parity/compare/${symbol}/${timeframe}`, {
             method: 'POST',
             body: formData,
         });
@@ -114,7 +116,7 @@ export const ApiClient = {
 
     // Strategies
     async listStrategies(): Promise<StrategyResponse[]> {
-        const res = await fetch(`${API_BASE}/strategies`);
+        const res = await fetch(`${API_V1}/strategies`);
         if (!res.ok) throw new Error('Failed to list strategies');
         return res.json();
     },
@@ -125,7 +127,7 @@ export const ApiClient = {
         symbol: string;
         params?: Record<string, unknown>;
     }): Promise<StrategyResponse> {
-        const res = await fetch(`${API_BASE}/strategies`, {
+        const res = await fetch(`${API_V1}/strategies`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
@@ -135,36 +137,36 @@ export const ApiClient = {
     },
 
     async startStrategy(id: string): Promise<void> {
-        const res = await fetch(`${API_BASE}/strategies/${id}/start`, { method: 'POST' });
+        const res = await fetch(`${API_V1}/strategies/${id}/start`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to start strategy');
     },
 
     async stopStrategy(id: string): Promise<void> {
-        const res = await fetch(`${API_BASE}/strategies/${id}/stop`, { method: 'POST' });
+        const res = await fetch(`${API_V1}/strategies/${id}/stop`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to stop strategy');
     },
 
     async deleteStrategy(id: string): Promise<void> {
-        const res = await fetch(`${API_BASE}/strategies/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_V1}/strategies/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete strategy');
     },
 
     // Portfolio
     async getPositions(): Promise<Position[]> {
-        const res = await fetch(`${API_BASE}/portfolio/positions`);
+        const res = await fetch(`${API_V1}/portfolio/positions`);
         if (!res.ok) return [];
         return res.json();
     },
 
     async getOrders(): Promise<Order[]> {
-        const res = await fetch(`${API_BASE}/portfolio/orders`);
+        const res = await fetch(`${API_V1}/portfolio/orders`);
         if (!res.ok) return [];
         return res.json();
     },
 
     // Alerts
     async listAlerts(): Promise<Alert[]> {
-        const res = await fetch(`${API_BASE}/alerts`);
+        const res = await fetch(`${API_V1}/alerts`);
         if (!res.ok) return [];
         return res.json();
     },
@@ -176,7 +178,7 @@ export const ApiClient = {
         value: number;
         delivery: string[];
     }): Promise<Alert> {
-        const res = await fetch(`${API_BASE}/alerts`, {
+        const res = await fetch(`${API_V1}/alerts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
@@ -186,14 +188,14 @@ export const ApiClient = {
     },
 
     async deleteAlert(id: string): Promise<void> {
-        const res = await fetch(`${API_BASE}/alerts/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_V1}/alerts/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to delete alert');
     },
 
     // Automation (Autopilot)
     async getAutomationStatus(): Promise<AutopilotStatus> {
         try {
-            const res = await fetch(`${API_BASE}/automation/status`);
+            const res = await fetch(`${API_V1}/automation/status`);
             if (!res.ok) return getDefaultAutopilotStatus();
             return res.json();
         } catch {
@@ -202,7 +204,7 @@ export const ApiClient = {
     },
 
     async armAutomation(mode: 'paper' | 'live', confirmLive: boolean = false): Promise<AutopilotStatus> {
-        const res = await fetch(`${API_BASE}/automation/arm`, {
+        const res = await fetch(`${API_V1}/automation/arm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode, confirm_live: confirmLive }),
@@ -215,33 +217,33 @@ export const ApiClient = {
     },
 
     async disarmAutomation(): Promise<AutopilotStatus> {
-        const res = await fetch(`${API_BASE}/automation/disarm`, { method: 'POST' });
+        const res = await fetch(`${API_V1}/automation/disarm`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to disarm automation');
         return res.json();
     },
 
     async killAutomation(): Promise<AutopilotStatus> {
-        const res = await fetch(`${API_BASE}/automation/kill`, { method: 'POST' });
+        const res = await fetch(`${API_V1}/automation/kill`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to trigger kill switch');
         return res.json();
     },
 
     async resetAutomation(): Promise<AutopilotStatus> {
-        const res = await fetch(`${API_BASE}/automation/reset`, { method: 'POST' });
+        const res = await fetch(`${API_V1}/automation/reset`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to reset automation');
         return res.json();
     },
 
     // Forecast (Uncertainty Cone)
     async getForecast(symbol: string, days: number = 30, confidence: string = '0.68,0.95'): Promise<ForecastResponse> {
-        const res = await fetch(`${API_BASE}/forecast/${symbol}?days=${days}&confidence=${encodeURIComponent(confidence)}`);
+        const res = await fetch(`${API_V1}/forecast/${symbol}?days=${days}&confidence=${encodeURIComponent(confidence)}`);
         if (!res.ok) throw new Error('Failed to fetch forecast');
         return res.json();
     },
 
     // Forecast Config (Unified Autopilot)
     async updateForecastConfig(config: ForecastConfig): Promise<AutopilotStatus> {
-        const res = await fetch(`${API_BASE}/automation/forecast-config`, {
+        const res = await fetch(`${API_V1}/automation/forecast-config`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
@@ -254,7 +256,7 @@ export const ApiClient = {
     },
 
     async getForecastStatus(symbol: string = 'AAPL'): Promise<ForecastStatus> {
-        const res = await fetch(`${API_BASE}/automation/forecast-status?symbol=${symbol}`);
+        const res = await fetch(`${API_V1}/automation/forecast-status?symbol=${symbol}`);
         if (!res.ok) return { symbol };
         return res.json();
     },

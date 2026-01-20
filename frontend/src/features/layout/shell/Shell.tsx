@@ -22,6 +22,7 @@ import { OrdersView } from '../views/OrdersView';
 import { RunsAuditView } from '../views/RunsAuditView';
 import { ToastProvider } from '../../../ui/Toast';
 import { useAppStore } from '../../../state/appStore';
+import { useStore } from '../../../state/store';
 import { useWorkspaceStore } from '../../../state/workspaceStore';
 import { TrustUX } from './TrustUX';
 
@@ -112,6 +113,8 @@ export function Shell() {
     // On mount, sync backend health and provider status
     useEffect(() => {
         useAppStore.getState().syncBackendHealth();
+        // Initialize WebSocket connection for market data
+        useStore.getState().connect();
     }, []);
 
     const renderMainView = () => {
