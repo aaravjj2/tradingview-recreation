@@ -207,6 +207,7 @@ async def get_unified_portfolio():
         # Format positions
         pos_list = [
             {
+                "id": p.symbol,  # Use symbol as unique ID
                 "symbol": p.symbol,
                 "quantity": float(p.qty),
                 "avg_cost": p.avg_entry_price,
