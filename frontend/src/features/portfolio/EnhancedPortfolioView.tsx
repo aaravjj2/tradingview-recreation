@@ -556,7 +556,7 @@ export function EnhancedPortfolioView() {
                         <tbody>
                             {filteredPositions.map(position => (
                                 <PositionRow
-                                    key={position.id}
+                                    key={position.id || position.symbol}
                                     position={position}
                                     onExit={handleExitPosition}
                                 />
