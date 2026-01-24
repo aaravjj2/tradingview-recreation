@@ -2,7 +2,6 @@
  * Autopilot View - Main container
  */
 
-import React from 'react';
 import { AutopilotDashboard } from '../../autopilot/components';
 
 export function AutopilotView() {

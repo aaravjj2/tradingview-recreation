@@ -27,6 +27,7 @@ export class WebSocketClient {
     private _state: WSConnectionState = 'DISCONNECTED';
     private degradedThreshold: number = 30000; // 30s without heartbeat = degraded
     private reconnectThreshold: number = 35000; // 35s without heartbeat = reconnect (Strict Stale Detection)
+    private connectionStableTimer: ReturnType<typeof setTimeout> | null = null;
     private visibilityHandler: (() => void) | null = null;
 
     // E2E Config Overrides
@@ -160,9 +161,19 @@ export class WebSocketClient {
                 const connectionTime = Date.now() - this.connectionStartTime;
                 console.log(`WS Connected in ${connectionTime}ms`);
 
-                // Reset backoff on successful connection
-                this.reconnectAttempts = 0;
-                this.reconnectDelay = 1000;
+                // Don't reset backoff immediately. Wait for stable connection.
+                if (this.connectionStableTimer) {
+                    clearTimeout(this.connectionStableTimer);
+                }
+
+                // If connection holds for 5 seconds, we consider it stable and reset the backoff
+                this.connectionStableTimer = setTimeout(() => {
+                    console.log('WS Connection Stable - Resetting Backoff');
+                    this.reconnectAttempts = 0;
+                    this.reconnectDelay = 1000;
+                    this.connectionStableTimer = null;
+                }, 5000);
+
                 this.lastHeartbeat = Date.now();
 
                 this.setState('CONNECTED');
@@ -205,6 +216,13 @@ export class WebSocketClient {
 
             this.socket.onclose = () => {
                 this.stopHeartbeatCheck();
+
+                // If connection didn't stabilize, cancel the reset timer
+                if (this.connectionStableTimer) {
+                    clearTimeout(this.connectionStableTimer);
+                    this.connectionStableTimer = null;
+                }
+
                 this.setState('DISCONNECTED');
 
                 if (this.shouldReconnect) {

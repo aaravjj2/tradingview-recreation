@@ -227,3 +227,38 @@ class AutopilotIncident(Base):
     
     def __repr__(self):
         return f"<AutopilotIncident {self.severity} {self.category}>"
+
+
+class LLMLog(Base):
+    """
+    Audit log for every LLM interaction.
+    Phase 1, Layer 4: Hallucination Prevention Record.
+    """
+    __tablename__ = "autopilot_llm_logs"
+    
+    id = Column(String(36), primary_key=True)  # UUID
+    run_id = Column(String(36), ForeignKey("autopilot_runs.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Provider Info
+    provider = Column(String(50), nullable=False)  # groq, gemini
+    model = Column(String(50), nullable=False)
+    
+    # Performance
+    latency_ms = Column(Float, default=0.0)
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    
+    # Content (potentially large)
+    context_summary = Column(Text, nullable=True)  # Brief of what was sent
+    raw_response = Column(Text, nullable=True)     # Full JSON response
+    
+    # Outcome
+    success = Column(Boolean, default=False)
+    error_message = Column(Text, nullable=True)
+    
+    # Link to validation
+    validation_outcome = Column(String(20), nullable=True) # accepted/rejected/error
+    
+    def __repr__(self):
+        return f"<LLMLog {self.provider} {self.model} success={self.success}>"

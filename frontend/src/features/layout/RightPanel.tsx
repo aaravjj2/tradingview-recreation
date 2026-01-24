@@ -2,10 +2,38 @@ import { Database, TrendingUp, PenTool, Bell, X } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/Tabs';
 import { IconButton } from '../../ui/IconButton';
 import { useAppStore } from '../../state/appStore';
+import { useStore } from '../../state/store';
 import { IndicatorDock } from '../indicators/IndicatorDock';
 
 // Panel content components
 function DataInspector() {
+    // Get data directly from stores
+    const { candles, lastCandle } = useStore();
+    const { providers } = useAppStore();
+
+    // Determine current price data
+    const current = lastCandle || (candles.length > 0 ? candles[candles.length - 1] : null);
+
+    // Calculate change (using previous candle close if available)
+    const prev = candles.length > 1 ? candles[candles.length - 2] : null;
+    const change = current && prev ? current.close - prev.close : 0;
+    const changePercent = current && prev && prev.close ? (change / prev.close) * 100 : 0;
+
+    // Determine active provider
+    const activeProvider = providers.alpaca.status === 'connected' ? 'Alpaca' :
+        providers.finnhub.status === 'connected' ? 'Finnhub' : 'Mock/Offline';
+
+    if (!current) {
+        return <div className="p-3 text-xs text-text-secondary">No data available</div>;
+    }
+
+    const fmt = (n: number) => n.toFixed(2);
+    const fmtVol = (n: number) => {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return n.toString();
+    };
+
     return (
         <div className="p-3 space-y-4">
             {/* OHLC */}
@@ -14,19 +42,19 @@ function DataInspector() {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Open</span>
-                        <span className="text-text font-mono tabular-nums">185.42</span>
+                        <span className="text-text font-mono tabular-nums">{fmt(current.open)}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-text-secondary">High</span>
-                        <span className="text-up font-mono tabular-nums">187.23</span>
+                        <span className="text-up font-mono tabular-nums">{fmt(current.high)}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Low</span>
-                        <span className="text-down font-mono tabular-nums">184.89</span>
+                        <span className="text-down font-mono tabular-nums">{fmt(current.low)}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Close</span>
-                        <span className="text-text font-mono tabular-nums">186.54</span>
+                        <span className="text-text font-mono tabular-nums">{fmt(current.close)}</span>
                     </div>
                 </div>
             </div>
@@ -37,15 +65,18 @@ function DataInspector() {
                 <div className="space-y-1 text-xs">
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Volume</span>
-                        <span className="text-text font-mono tabular-nums">12.4M</span>
+                        <span className="text-text font-mono tabular-nums">{fmtVol(current.volume)}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Change</span>
-                        <span className="text-up font-mono tabular-nums">+1.12 (0.61%)</span>
+                        <span className={`${change >= 0 ? 'text-up' : 'text-down'} font-mono tabular-nums`}>
+                            {change >= 0 ? '+' : ''}{fmt(change)} ({fmt(changePercent)}%)
+                        </span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Spread</span>
-                        <span className="text-text font-mono tabular-nums">0.02</span>
+                        {/* We don't have spread in bar data, defaulting to -- or est */}
+                        <span className="text-text font-mono tabular-nums">--</span>
                     </div>
                 </div>
             </div>
@@ -56,11 +87,13 @@ function DataInspector() {
                 <div className="space-y-1 text-xs">
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Provider</span>
-                        <span className="text-text">Finnhub</span>
+                        <span className="text-text">{activeProvider}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-text-secondary">Last Update</span>
-                        <span className="text-text font-mono tabular-nums">09:31:42</span>
+                        <span className="text-text font-mono tabular-nums">
+                            {new Date(current.time).toLocaleTimeString()}
+                        </span>
                     </div>
                 </div>
             </div>

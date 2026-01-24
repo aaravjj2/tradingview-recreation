@@ -296,12 +296,12 @@ async def websocket_bars(
             try:
                 # Get bar storage - try bar_engine.state first, then fallback
                 try:
-                    from ..bar_engine.state import get_state
-                    store = get_state()
-                    recent = await store.get_recent_bars(symbol.upper(), timeframe, count=100)
+                    from ..persistence.repository import BarRepository
+                    repo = BarRepository()
+                    recent = await repo.get_recent_bars(symbol.upper(), timeframe, limit=100)
                 except Exception as exc:
                     recent = []
-                    logger.warning("ws_history_fallback", symbol=symbol, reason=str(exc))
+                    logger.warning("ws_history_error", symbol=symbol, reason=str(exc))
 
                 # Send history in chronological order (oldest -> newest)
                 if recent:

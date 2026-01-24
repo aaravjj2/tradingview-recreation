@@ -322,6 +322,134 @@ class MarketDataProvider:
             self._set_cache(cache_key, prices)
         return prices
     
+    def get_price_history(self, symbol: str, days: int = 60) -> List[float]:
+        """
+        Get price history for technical analysis.
+        
+        Args:
+            symbol: Ticker symbol
+            days: Number of days of history
+            
+        Returns:
+            List of closing prices (oldest to newest)
+        """
+        # Map days to yfinance periods
+        if days <= 5:
+            period = "5d"
+        elif days <= 30:
+            period = "1mo"
+        elif days <= 60:
+            period = "2mo"
+        elif days <= 90:
+            period = "3mo"
+        else:
+            period = "6mo"
+        
+        prices = self.get_historical_prices(symbol, period)
+        
+        # Return last N days
+        if len(prices) > days:
+            return prices[-days:]
+        return prices
+    
+    def get_volume_history(self, symbol: str, days: int = 60) -> List[float]:
+        """
+        Get volume history for technical analysis.
+        
+        Args:
+            symbol: Ticker symbol
+            days: Number of days of history
+            
+        Returns:
+            List of daily volumes (oldest to newest)
+        """
+        if not self.yfinance._yf:
+            return [1_000_000] * days  # Default volumes
+        
+        try:
+            # Map days to periods
+            if days <= 5:
+                period = "5d"
+            elif days <= 30:
+                period = "1mo"
+            elif days <= 60:
+                period = "2mo"
+            elif days <= 90:
+                period = "3mo"
+            else:
+                period = "6mo"
+            
+            ticker = self.yfinance._yf.Ticker(symbol)
+            hist = ticker.history(period=period)
+            volumes = hist["Volume"].tolist()
+            
+            # Return last N days
+            if len(volumes) > days:
+                return volumes[-days:]
+            return volumes
+            
+        except Exception as e:
+            logger.error(f"Volume history error for {symbol}: {e}")
+            return [1_000_000] * days
+    
+    def get_ohlcv_history(
+        self,
+        symbol: str,
+        days: int = 60
+    ) -> Dict[str, List[float]]:
+        """
+        Get full OHLCV history for comprehensive technical analysis.
+        
+        Returns:
+            Dict with 'open', 'high', 'low', 'close', 'volume' lists
+        """
+        if not self.yfinance._yf:
+            default_price = self.get_stock_price(symbol) or 100.0
+            return {
+                "open": [default_price] * days,
+                "high": [default_price * 1.01] * days,
+                "low": [default_price * 0.99] * days,
+                "close": [default_price] * days,
+                "volume": [1_000_000] * days,
+            }
+        
+        try:
+            # Map days to periods
+            if days <= 5:
+                period = "5d"
+            elif days <= 30:
+                period = "1mo"
+            elif days <= 60:
+                period = "2mo"
+            elif days <= 90:
+                period = "3mo"
+            else:
+                period = "6mo"
+            
+            ticker = self.yfinance._yf.Ticker(symbol)
+            hist = ticker.history(period=period)
+            
+            result = {
+                "open": hist["Open"].tolist()[-days:],
+                "high": hist["High"].tolist()[-days:],
+                "low": hist["Low"].tolist()[-days:],
+                "close": hist["Close"].tolist()[-days:],
+                "volume": hist["Volume"].tolist()[-days:],
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"OHLCV history error for {symbol}: {e}")
+            default_price = self.get_stock_price(symbol) or 100.0
+            return {
+                "open": [default_price] * days,
+                "high": [default_price * 1.01] * days,
+                "low": [default_price * 0.99] * days,
+                "close": [default_price] * days,
+                "volume": [1_000_000] * days,
+            }
+    
     def find_spread_legs(
         self,
         symbol: str,

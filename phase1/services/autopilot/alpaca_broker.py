@@ -105,23 +105,33 @@ class AlpacaOptionsBroker(PaperBroker):
         # First, submit to paper broker
         paper_order = super().submit_order(candidate, order_type, limit_price)
         
+        print(f"BROKER DEBUG: _alpaca_enabled={self._alpaca_enabled}, paper_order={paper_order.order_id}")
+        
         # Then attempt Alpaca submission
         if self._alpaca_enabled:
+            print(f"BROKER DEBUG: Attempting Alpaca submission for {paper_order.order_id}")
             try:
                 alpaca_result = self._submit_to_alpaca(candidate, paper_order)
+                
+                print(f"BROKER DEBUG: Alpaca result success={alpaca_result.success}")
                 
                 if alpaca_result.success:
                     self._order_mappings[paper_order.order_id] = alpaca_result.alpaca_order_id
                     logger.info(
                         f"Order {paper_order.order_id} -> Alpaca {alpaca_result.alpaca_order_id}"
                     )
+                    print(f"BROKER DEBUG: SUCCESS - {paper_order.order_id} -> {alpaca_result.alpaca_order_id}")
                 else:
                     logger.warning(
                         f"Alpaca submission failed: {alpaca_result.error} "
                         f"(paper order still valid)"
                     )
+                    print(f"BROKER DEBUG: FAILED - {alpaca_result.error}")
             except Exception as e:
                 logger.error(f"Alpaca submission error: {e}")
+                print(f"BROKER DEBUG: EXCEPTION - {e}")
+        else:
+            print(f"BROKER DEBUG: Alpaca disabled - not submitting")
         
         return paper_order
     

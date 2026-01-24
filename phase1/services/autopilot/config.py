@@ -43,10 +43,13 @@ class StrategyTemplate(str, Enum):
 V1_TEMPLATES = [StrategyTemplate.LONG_CALL, StrategyTemplate.LONG_PUT]
 
 
-# Default liquid universe
-# Default liquid universe
+# Default liquid universe - restricted to 5 tickers for testing
 DEFAULT_UNIVERSE = [
-    "AAPL", "SPY", "MSFT", "GLD", "SLV"
+    "SPY",   # S&P 500 ETF
+    "GLD",   # Gold ETF  
+    "GOOGL", # Google
+    "NVDA",  # NVIDIA
+    "AAPL",  # Apple
 ]
 
 # Universe clusters for concentration limits
@@ -63,10 +66,11 @@ UNIVERSE_CLUSTERS = {
 @dataclass
 class RiskLimits:
     """Risk management limits for paper trading."""
-    max_risk_per_trade: float = 50.0  # 5% of $1000
-    max_total_risk: float = 400.0  # 40% of equity
-    max_daily_loss: float = 30.0  # 3% of equity
-    max_open_positions: int = 10
+    max_risk_per_trade: float = 200.0  # 20% of $1000 per trade
+    max_total_risk: float = 800.0  # 80% of $1000 equity
+    max_daily_loss: float = 100.0  # 10% of $1000 equity
+    max_open_positions: int = 5  # Max 5 positions at a time
+    max_daily_trades: int = 10  # Max 10 trades per day (buy + sell)
     max_positions_per_underlying: int = 1
     max_positions_per_cluster: int = 2
     max_cluster_risk_pct: float = 0.6  # 60% max in any cluster
@@ -158,11 +162,11 @@ class AutopilotConfig:
     # Focus controls (single underlying)
     focus_symbol: Optional[str] = None  # If set, only trade this underlying
     max_symbols_per_cycle: int = 5  # Evaluate top 5 symbols per cycle
-    contracts_per_trade: int = 10  # Fixed contracts per trade
+    contracts_per_trade: int = 1  # 1 contract per trade for $1000 budget
     weekly_expiry_only: bool = True  # Prefer weekly expiry options
     
-    # Budget (paper equity)
-    paper_equity: float = 100000.0
+    # Budget (paper equity) - $1000 limit
+    paper_equity: float = 1000.0
     
     # Feature Flags
     enable_finbert: bool = False

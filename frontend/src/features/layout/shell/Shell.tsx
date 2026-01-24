@@ -13,7 +13,7 @@ import { AlertsView } from '../views/AlertsView';
 import { EnhancedPortfolioView } from '../../portfolio/EnhancedPortfolioView';
 import { ReportsView } from '../views/ReportsView';
 import { SettingsView } from '../views/SettingsView';
-import { UnifiedDashboardView } from '../views/UnifiedDashboardView';
+import { CommandCenterView } from '../views/CommandCenterView';
 import { AutomationView } from '../views/AutomationView';
 import { IncidentsView } from '../views/IncidentsView';
 import { OptionsView } from '../views/OptionsView';
@@ -153,7 +153,7 @@ export function Shell() {
                     </PanelGroup>
                 );
             case 'dashboard':
-                return <UnifiedDashboardView />;
+                return <CommandCenterView />;
             case 'options':
                 return <OptionsView />;
             case 'autopilot':

@@ -67,7 +67,8 @@ class OptionsDataAdapter:
             # Get underlying price
             try:
                 info = ticker.fast_info
-                underlying_price = info.get('lastPrice') or info.get('regularMarketPrice')
+                # fast_info is an object with attributes, not a dict
+                underlying_price = getattr(info, 'lastPrice', None) or getattr(info, 'last_price', None) or getattr(info, 'regularMarketPrice', None)
                 if underlying_price is None:
                     hist = ticker.history(period="1d")
                     if not hist.empty:
@@ -333,23 +334,54 @@ class OptionsDataAdapter:
 from ..config import get_settings
 
 # Singleton adapter instance
-_adapter: Optional[OptionsDataAdapter] = None
+_adapter: Optional["HybridOptionsAdapter"] = None
 
 
-def get_options_adapter() -> OptionsDataAdapter:
-    """Get or create the options data adapter"""
+class HybridOptionsAdapter:
+    """
+    Hybrid adapter that tries Alpaca first (if enabled) and falls back to yfinance.
+    This ensures options data is always available even if Alpaca doesn't return data.
+    """
+    
+    def __init__(self, alpaca_adapter=None, yfinance_adapter=None):
+        self._alpaca = alpaca_adapter
+        self._yfinance = yfinance_adapter or OptionsDataAdapter()
+    
+    def get_chain(self, symbol: str, expiration=None):
+        # Try Alpaca first if available
+        if self._alpaca:
+            try:
+                chain = self._alpaca.get_chain(symbol, expiration)
+                if chain and chain.contracts:
+                    return chain
+            except Exception as e:
+                logger.debug(f"Alpaca options failed, falling back to yfinance: {e}")
+        
+        # Fall back to yfinance
+        return self._yfinance.get_chain(symbol, expiration)
+    
+    def get_put_call_ratio(self, chain):
+        return self._yfinance.get_put_call_ratio(chain)
+    
+    def get_atm_iv(self, chain, expiration=None):
+        return self._yfinance.get_atm_iv(chain, expiration)
+
+
+def get_options_adapter() -> HybridOptionsAdapter:
+    """Get or create the hybrid options data adapter"""
     global _adapter
     if _adapter is None:
         settings = get_settings()
-        # Prefer Alpaca for options if enabled and keys are present (experimental)
+        alpaca_adapter = None
+        
+        # Try to initialize Alpaca adapter if enabled
         if getattr(settings, "enable_alpaca_options", False) and settings.apca_api_key_id and settings.apca_api_secret_key:
             try:
                 from .alpaca_adapter import AlpacaOptionsAdapter
-
-                _adapter = AlpacaOptionsAdapter()
+                alpaca_adapter = AlpacaOptionsAdapter()
+                logger.info("Alpaca options adapter initialized (with yfinance fallback)")
             except Exception:
-                logger.exception("alpaca_adapter_init_failed")
-                _adapter = OptionsDataAdapter()
-        else:
-            _adapter = OptionsDataAdapter()
+                logger.warning("alpaca_adapter_init_failed, using yfinance only")
+        
+        _adapter = HybridOptionsAdapter(alpaca_adapter=alpaca_adapter)
     return _adapter

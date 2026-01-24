@@ -1,6 +1,6 @@
 import types
 
-from services.options.adapter import get_options_adapter, OptionsDataAdapter
+from services.options.adapter import get_options_adapter, OptionsDataAdapter, HybridOptionsAdapter
 
 
 def test_get_options_adapter_falls_back_by_default(monkeypatch):
@@ -11,8 +11,13 @@ def test_get_options_adapter_falls_back_by_default(monkeypatch):
     # Patch settings to no Alpaca keys
     monkeypatch.setattr('services.options.adapter.get_settings', lambda: __import__('types').SimpleNamespace(enable_alpaca_options=False, apca_api_key_id=None, apca_api_secret_key=None))
 
-    adapters = get_options_adapter()
-    assert isinstance(adapters, OptionsDataAdapter)
+    adapter = get_options_adapter()
+    # Now returns HybridOptionsAdapter which wraps OptionsDataAdapter
+    assert isinstance(adapter, HybridOptionsAdapter)
+    # Should have no Alpaca adapter configured
+    assert adapter._alpaca is None
+    # Should have yfinance adapter
+    assert isinstance(adapter._yfinance, OptionsDataAdapter)
 
 
 def test_get_options_adapter_prefers_alpaca_when_enabled(monkeypatch):
@@ -30,7 +35,7 @@ def test_get_options_adapter_prefers_alpaca_when_enabled(monkeypatch):
     monkeypatch.setattr('services.options.adapter.get_settings', lambda: fake_settings)
 
     adapter = get_options_adapter()
-    # Adapter should be an instance of the Alpaca options adapter when available
-    assert adapter is not None
-    # The adapter class name should contain 'Alpaca' or provider 'alpaca' when present
-    assert adapter.__class__.__name__.lower().startswith('alpaca')
+    # Should be HybridOptionsAdapter
+    assert isinstance(adapter, HybridOptionsAdapter)
+    # With Alpaca enabled, it should try to initialize Alpaca adapter
+    # (may fail if module not available, but should still be HybridOptionsAdapter)

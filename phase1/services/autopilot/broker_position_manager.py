@@ -29,12 +29,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BrokerExitRule:
-    """Exit rule attached to a managed position."""
-    profit_target_pct: float = 50.0  # Close at 50% profit
-    stop_loss_pct: float = 100.0     # Close at 100% loss
-    time_stop_dte: int = 7           # Close if DTE <= 7 days
+    """
+    Exit rule attached to a managed position.
+    
+    NEW LOGIC:
+    - Hard stop loss at 10% loss (always)
+    - When profit reaches 10%, set trailing stop at 5% profit
+    - When profit reaches 20%, set trailing stop at 15% profit
+    - Pattern continues: trailing_stop = profit_level - 5%
+    """
+    profit_target_pct: float = 50.0  # Take profit at 50% (optional)
+    stop_loss_pct: float = 10.0      # Hard stop at 10% LOSS
+    time_stop_dte: int = 1           # Close if DTE <= 1 day
     dte_threshold: int = 0           # Hard close at DTE=0
-    trailing_stop_pct: Optional[float] = None
+    trailing_stop_pct: Optional[float] = None  # Dynamic trailing stop
+    trailing_step: float = 5.0       # Trailing follows profit - 5%
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -43,16 +52,18 @@ class BrokerExitRule:
             "time_stop_dte": self.time_stop_dte,
             "dte_threshold": self.dte_threshold,
             "trailing_stop_pct": self.trailing_stop_pct,
+            "trailing_step": self.trailing_step,
         }
     
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "BrokerExitRule":
         return cls(
             profit_target_pct=d.get("profit_target_pct", 50.0),
-            stop_loss_pct=d.get("stop_loss_pct", 100.0),
-            time_stop_dte=d.get("time_stop_dte", 7),
+            stop_loss_pct=d.get("stop_loss_pct", 10.0),  # 10% hard stop
+            time_stop_dte=d.get("time_stop_dte", 1),
             dte_threshold=d.get("dte_threshold", 0),
             trailing_stop_pct=d.get("trailing_stop_pct"),
+            trailing_step=d.get("trailing_step", 5.0),
         )
 
 
@@ -293,7 +304,7 @@ class BrokerPositionManager:
         news_shocks: Optional[List[str]] = None,
         earnings_shocks: Optional[List[str]] = None,
     ) -> List[BrokerExitSignal]:
-        """Evaluate all positions for exits."""
+        """Evaluate all positions for exits - ALL positions are monitored by default."""
         if positions is None:
             positions = await self.get_positions()
         
@@ -301,9 +312,12 @@ class BrokerPositionManager:
         news_shocks = news_shocks or []
         earnings_shocks = earnings_shocks or []
         
+        print(f"EVALUATE EXITS: Checking {len(positions)} positions")
+        
         for pos in positions:
-            if not pos.managed:
-                continue
+            # IMPORTANT: Check ALL positions, not just "managed" ones
+            # Every position needs stop loss protection
+            print(f"EVALUATE EXITS [{pos.symbol}]: managed={pos.managed}, profit_pct={pos.current_profit_pct:.1f}%")
             
             pos_signals = self._check_triggers(pos, news_shocks, earnings_shocks)
             signals.extend(pos_signals)
@@ -432,36 +446,77 @@ class BrokerPositionManager:
         news_shocks: List[str],
         earnings_shocks: List[str],
     ) -> List[BrokerExitSignal]:
-        """Check exit triggers for a position."""
+        """
+        Check exit triggers for a position.
+        
+        NEW LOGIC:
+        - Hard stop at 10% LOSS (immediate exit)
+        - Trailing stop kicks in at 10% profit:
+          - At 10% profit → trailing stop at 5% profit
+          - At 20% profit → trailing stop at 15% profit  
+          - Pattern: trailing_stop = highest_profit - 5%
+        """
         signals = []
-        rules = pos.exit_rules
-        if not rules:
-            return signals
+        
+        # Default exit rules if none provided (10% stop, 50% target)
+        rules = pos.exit_rules or BrokerExitRule(
+            stop_loss_pct=10.0,
+            profit_target_pct=50.0,
+            time_stop_dte=1,
+            trailing_step=5.0,
+        )
         
         underlying = pos.underlying or pos.symbol
+        current_pct = pos.current_profit_pct
+        highest_pct = pos.highest_profit_pct
         
-        # Profit target
-        if rules.profit_target_pct > 0 and pos.current_profit_pct >= rules.profit_target_pct:
+        print(f"MONITOR DEBUG [{pos.symbol}]: current_profit={current_pct:.1f}%, highest={highest_pct:.1f}%, stop_loss={rules.stop_loss_pct}%")
+        
+        # 1. HARD STOP LOSS (10% loss = immediate exit)
+        if rules.stop_loss_pct > 0 and current_pct <= -rules.stop_loss_pct:
+            print(f"MONITOR DEBUG [{pos.symbol}]: 🛑 HARD STOP TRIGGERED! Loss={current_pct:.1f}% exceeds {rules.stop_loss_pct}%")
+            signals.append(BrokerExitSignal(
+                symbol=pos.symbol,
+                trigger=ExitTrigger.STOP_LOSS,
+                trigger_value=current_pct,
+                threshold=-rules.stop_loss_pct,
+                urgency="immediate",
+                metadata=pos.exit_rules,
+            ))
+            return signals  # Hard stop - exit immediately
+        
+        # 2. TRAILING STOP (activates at 10%+ profit)
+        trailing_step = getattr(rules, 'trailing_step', 5.0)
+        if highest_pct >= 10.0:
+            # Calculate dynamic trailing stop level
+            # At 10% profit → trail at 5%, at 20% → trail at 15%, etc.
+            trailing_stop_level = highest_pct - trailing_step
+            
+            if current_pct <= trailing_stop_level:
+                print(f"MONITOR DEBUG [{pos.symbol}]: 📉 TRAILING STOP TRIGGERED! Current={current_pct:.1f}% fell below trail={trailing_stop_level:.1f}% (high was {highest_pct:.1f}%)")
+                signals.append(BrokerExitSignal(
+                    symbol=pos.symbol,
+                    trigger=ExitTrigger.TRAILING_STOP,
+                    trigger_value=current_pct,
+                    threshold=trailing_stop_level,
+                    urgency="immediate",
+                    metadata=pos.exit_rules,
+                ))
+        
+        # 3. Profit target (optional - 50% profit exit)
+        if rules.profit_target_pct > 0 and current_pct >= rules.profit_target_pct:
+            print(f"MONITOR DEBUG [{pos.symbol}]: 🎯 PROFIT TARGET! {current_pct:.1f}% >= {rules.profit_target_pct}%")
             signals.append(BrokerExitSignal(
                 symbol=pos.symbol,
                 trigger=ExitTrigger.PROFIT_TARGET,
-                trigger_value=pos.current_profit_pct,
+                trigger_value=current_pct,
                 threshold=rules.profit_target_pct,
                 urgency="normal",
             ))
         
-        # Stop loss
-        if rules.stop_loss_pct > 0 and pos.current_profit_pct <= -rules.stop_loss_pct:
-            signals.append(BrokerExitSignal(
-                symbol=pos.symbol,
-                trigger=ExitTrigger.STOP_LOSS,
-                trigger_value=pos.current_profit_pct,
-                threshold=-rules.stop_loss_pct,
-                urgency="immediate",
-            ))
-        
-        # Time stop
+        # 4. Time stop (DTE threshold)
         if pos.dte is not None and rules.time_stop_dte > 0 and pos.dte <= rules.time_stop_dte:
+            print(f"MONITOR DEBUG [{pos.symbol}]: ⏰ TIME STOP! DTE={pos.dte} <= {rules.time_stop_dte}")
             signals.append(BrokerExitSignal(
                 symbol=pos.symbol,
                 trigger=ExitTrigger.TIME_STOP,
@@ -470,8 +525,9 @@ class BrokerPositionManager:
                 urgency="normal",
             ))
         
-        # DTE threshold
+        # 5. DTE threshold (hard close at expiration)
         if pos.dte is not None and pos.dte <= rules.dte_threshold:
+            print(f"MONITOR DEBUG [{pos.symbol}]: 🔚 DTE THRESHOLD! DTE={pos.dte} <= {rules.dte_threshold}")
             signals.append(BrokerExitSignal(
                 symbol=pos.symbol,
                 trigger=ExitTrigger.DTE_THRESHOLD,
@@ -480,19 +536,7 @@ class BrokerPositionManager:
                 urgency="immediate",
             ))
         
-        # Trailing stop
-        if rules.trailing_stop_pct and pos.highest_profit_pct > 0:
-            trail = pos.highest_profit_pct - rules.trailing_stop_pct
-            if pos.current_profit_pct < trail:
-                signals.append(BrokerExitSignal(
-                    symbol=pos.symbol,
-                    trigger=ExitTrigger.TRAILING_STOP,
-                    trigger_value=pos.current_profit_pct,
-                    threshold=trail,
-                    urgency="normal",
-                ))
-        
-        # News/earnings shocks
+        # 6. News/earnings shocks
         if underlying in news_shocks:
             signals.append(BrokerExitSignal(
                 symbol=pos.symbol,
@@ -511,23 +555,25 @@ class BrokerPositionManager:
                 urgency="immediate",
             ))
         
-        # EOD Flatten for 0DTE positions (v1 single-leg rule)
-        # Flatten 0DTE positions 30 mins before market close
+        # 7. EOD Flatten for 0DTE positions
         if pos.dte is not None and pos.dte == 0:
-            from ..market_calendar import get_market_calendar
-            calendar = get_market_calendar()
-            time_to_close = calendar.time_to_close()
-            
-            if time_to_close is not None:
-                minutes_to_close = time_to_close.total_seconds() / 60
-                if minutes_to_close <= 30:  # 30 mins before close
-                    signals.append(BrokerExitSignal(
-                        symbol=pos.symbol,
-                        trigger=ExitTrigger.EOD_FLATTEN,
-                        trigger_value=minutes_to_close,
-                        threshold=30.0,
-                        urgency="immediate",
-                    ))
+            try:
+                from ..market_calendar import get_market_calendar
+                calendar = get_market_calendar()
+                time_to_close = calendar.time_to_close()
+                
+                if time_to_close is not None:
+                    minutes_to_close = time_to_close.total_seconds() / 60
+                    if minutes_to_close <= 30:  # 30 mins before close
+                        signals.append(BrokerExitSignal(
+                            symbol=pos.symbol,
+                            trigger=ExitTrigger.EOD_FLATTEN,
+                            trigger_value=minutes_to_close,
+                            threshold=30.0,
+                            urgency="immediate",
+                        ))
+            except Exception as e:
+                logger.warning(f"Failed to check EOD flatten: {e}")
         
         return signals
     

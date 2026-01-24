@@ -30,18 +30,20 @@ async def test_sentiment_gating_bearish():
         provider="mock"
     )
     
-    # Candidate with bearish sentiment
+    # Candidate with bearish sentiment - needs template to trigger gate
     bad_candidate = {
         "symbol": "AAPL",
         "dte": 30,
-        "score": 10.0 # High technical score
+        "score": 10.0, # High technical score
+        "template": "put_credit_spread",  # This is a bullish strategy
     }
     
     # Candidate with neutral/positive sentiment
     good_candidate = {
         "symbol": "GOOGL",
         "dte": 30,
-        "score": 5.0 # Lower technical score but safe
+        "score": 5.0, # Lower technical score but safe
+        "template": "put_credit_spread",
     }
     
     # Mock positions (empty)

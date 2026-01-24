@@ -847,16 +847,30 @@ class UnifiedAutopilotEngine:
             artifact.health = await self._check_health()
             think.observe(f"Alpaca connected: {artifact.health.alpaca_connected}, latency: {artifact.health.alpaca_latency_ms:.0f}ms")
             
-            # Phase 3: Monitoring (REMOVED - Handled by PositionAgents)
-            # self._set_phase(CyclePhase.MONITORING)
-            # Logic moved to PositionAgent for distributed monitoring
-            artifact.exits_triggered = 0
-            artifact.exits_executed = 0
+            # Phase 3: Monitoring - Check for exit triggers on ALL positions
+            self._set_phase(CyclePhase.MONITORING)
+            think.monitor("Checking all positions for exit triggers...")
+            
+            monitoring_actions = await self._run_monitoring_pass(
+                positions, artifact.market_context, artifact.sentiment, dry_run
+            )
+            
+            artifact.monitoring_actions = monitoring_actions
+            artifact.exits_triggered = len([a for a in monitoring_actions if a.action == "exit"])
+            artifact.exits_executed = len([a for a in monitoring_actions if a.success])
+            
+            if artifact.exits_triggered > 0:
+                think.execute(f"EXIT TRIGGERS: {artifact.exits_triggered} positions triggered, {artifact.exits_executed} executed")
+            else:
+                think.observe(f"No exit triggers (monitoring {len(positions)} positions)")
             
             # Phase 4: Candidate Generation (if budget available)
             self._set_phase(CyclePhase.CANDIDATE_GENERATION)
             think.evaluate("Risk budget", "checking if we can open new positions...")
-            risk_budget_ok = self._check_risk_budget(positions)
+            
+            # Get daily trade count for limit check
+            daily_trades = await self._get_daily_trade_count()
+            risk_budget_ok = self._check_risk_budget(positions, daily_trades)
             
             if not risk_budget_ok:
                 think.reject("New trades", "risk budget exhausted")
@@ -945,30 +959,38 @@ class UnifiedAutopilotEngine:
             
             # Phase 7: Execution
             self._set_phase(CyclePhase.EXECUTION)
-            if validated and not dry_run:
-                think.execute(f"Submitting {len(validated)} trades to Alpaca...")
-                orders = await self._execute_trades(validated, run_id)
-                artifact.orders_placed = orders
-                artifact.orders_filled = sum(1 for o in orders if o.status == "filled")
-                artifact.orders_rejected = sum(1 for o in orders if o.status == "rejected")
-                
-                for order in orders:
-                    if order.status == "filled":
-                        think.execute(f"FILLED: {order.symbol} @ ${order.limit_price:.2f}", {
-                            "order_id": order.alpaca_order_id,
-                            "qty": order.qty,
-                        })
-                    elif order.status == "rejected":
-                        think.reject(f"Order {order.symbol}", order.error or "unknown error")
-                    else:
-                        think.think("PENDING", f"Order {order.symbol} status: {order.status}", emoji="⏳")
-                
-            elif dry_run:
-                think.skip("Execution", "dry run mode enabled")
-                artifact.add_no_action_reason("Dry run mode - execution skipped")
-            elif not validated:
+            print(f"EXEC DEBUG: validated={len(validated)}, dry_run={dry_run}")
+            logger.info(f"⚡ EXECUTION PHASE: validated={len(validated)}, dry_run={dry_run}")
+            if validated:
+                print(f"EXEC DEBUG: Have validated candidates")
+                logger.info(f"✅ Have {len(validated)} validated candidates")
+                if not dry_run:
+                    print(f"EXEC DEBUG: DRY_RUN=FALSE - executing trades")
+                    logger.info("🚀 DRY_RUN=FALSE - REAL EXECUTION MODE")
+                    think.execute(f"Submitting {len(validated)} trades to Alpaca...")
+                    orders = await self._execute_trades(validated, run_id)
+                    artifact.orders_placed = orders
+                    artifact.orders_filled = sum(1 for o in orders if o.status == "filled")
+                    artifact.orders_rejected = sum(1 for o in orders if o.status == "rejected")
+                    
+                    for order in orders:
+                        if order.status == "filled":
+                            think.execute(f"FILLED: {order.symbol} @ ${order.limit_price:.2f}", {
+                                "order_id": order.alpaca_order_id,
+                                "qty": order.qty,
+                            })
+                        elif order.status == "rejected":
+                            think.reject(f"Order {order.symbol}", order.error or "unknown error")
+                        else:
+                            think.think("PENDING", f"Order {order.symbol} status: {order.status}", emoji="⏳")
+                else:
+                    think.skip("Execution", "dry run mode enabled")
+                    artifact.add_no_action_reason("Dry run mode - execution skipped")
+                    logger.warning("🔴 DRY_RUN=TRUE - Skipping execution")
+            else:
                 think.skip("Execution", "no candidates passed validation")
                 artifact.add_no_action_reason("No candidates passed validation")
+                logger.warning("⚠️ NO VALIDATED CANDIDATES - Nothing to execute")
             
             # Phase 8: Persistence
             self._set_phase(CyclePhase.PERSISTENCE)
@@ -1166,69 +1188,118 @@ class UnifiedAutopilotEngine:
         sentiment: SentimentSnapshot,
         dry_run: bool,
     ) -> List[MonitoringAction]:
-        """Run monitoring pass - evaluate exits for all positions (paper + Alpaca)."""
-        from .broker_position_manager import get_broker_position_manager, ExitTrigger, EnrichedBrokerPosition, BrokerExitSignal
+        """
+        Run monitoring pass - evaluate exits for ALL Alpaca positions.
+        
+        Uses REAL Alpaca position P&L, not simulated values.
+        Executes sell orders via Alpaca API for positions that hit exit triggers.
+        """
+        from .broker_position_manager import get_broker_position_manager, ExitTrigger, EnrichedBrokerPosition, BrokerExitSignal, BrokerExitRule
         from .alpaca_client import get_alpaca_client
         from datetime import date
-        import random
         
         manager = get_broker_position_manager()
         client = get_alpaca_client()
         
         actions = []
         
-        # Get paper positions from BrokerMetaStore
-        paper_positions = []
-        for meta in manager._store.all():
-            # Simulate current profit/loss based on time decay
-            hours_held = (datetime.now() - meta.opened_at).total_seconds() / 3600
-            
-            # Simulate price movement: options decay over time (theta)
-            # ~50% profit target in days, with some randomness
-            simulated_profit_pct = min(hours_held * 2 + random.uniform(-5, 10), 100)
-            
-            # Create enriched position for evaluation
-            paper_pos = EnrichedBrokerPosition(
-                symbol=meta.symbol,
-                qty=1,
-                side="short",
-                avg_entry_price=meta.entry_credit,
-                current_price=meta.entry_credit * (1 - simulated_profit_pct / 100),
-                market_value=meta.entry_credit * (1 - simulated_profit_pct / 100) * 100,
-                unrealized_pnl=meta.entry_credit * simulated_profit_pct,
-                unrealized_pnl_pct=simulated_profit_pct,
-                asset_class="us_option",
-                underlying=meta.symbol,
-                expiration=None,  # Would parse from OCC symbol
-                strike=None,
-                option_type="put" if "put" in meta.strategy_template.lower() else "call",
-                dte=7,  # Default, should be calculated
-                managed=meta.managed,
-                run_id=meta.run_id,
-                strategy_template=meta.strategy_template,
-                exit_rules=meta.exit_rules,
-                entry_credit=meta.entry_credit,
-                highest_profit_pct=meta.highest_profit_pct,
-                current_profit_pct=simulated_profit_pct,
-            )
-            paper_positions.append(paper_pos)
+        print(f"MONITOR: Starting monitoring pass, dry_run={dry_run}")
         
-        # Also try to get Alpaca positions
+        # Get ALL Alpaca positions (real market data)
         try:
-            alpaca_positions = await manager.get_positions()
-        except Exception:
-            alpaca_positions = []
+            alpaca_positions_raw = await client.list_positions()
+            print(f"MONITOR: Got {len(alpaca_positions_raw)} positions from Alpaca")
+        except Exception as e:
+            print(f"MONITOR: Failed to get Alpaca positions: {e}")
+            logger.error(f"Failed to get Alpaca positions: {e}")
+            return actions
         
-        # Combine both
-        all_positions = paper_positions + alpaca_positions
+        # Enrich with metadata and calculate profit % using REAL prices
+        enriched_positions = []
+        for pos in alpaca_positions_raw:
+            symbol = pos.symbol
+            meta = manager._store.get(symbol)
+            
+            # Calculate REAL profit % from Alpaca data
+            entry_price = float(pos.avg_entry_price)
+            current_price = float(pos.current_price)
+            unrealized_pnl = float(pos.unrealized_pl)
+            unrealized_pnl_pct = float(pos.unrealized_plpc) * 100  # Alpaca returns as decimal
+            
+            # Use Alpaca P&L % directly  
+            current_profit_pct = unrealized_pnl_pct
+            
+            # For options, calculate based on credit received if we have metadata
+            if meta and meta.entry_credit > 0:
+                # For credit spreads: profit = credit - current_value
+                market_val = abs(float(pos.market_value))
+                credit_received = meta.entry_credit * 100  # Convert to dollar value
+                current_profit_pct = ((credit_received - market_val) / credit_received) * 100
+            
+            # Parse option details from symbol
+            underlying = manager._parse_underlying(symbol) if hasattr(manager, '_parse_underlying') else None
+            expiration = manager._parse_expiration(symbol) if hasattr(manager, '_parse_expiration') else None
+            strike = manager._parse_strike(symbol) if hasattr(manager, '_parse_strike') else None
+            option_type = manager._parse_option_type(symbol) if hasattr(manager, '_parse_option_type') else None
+            dte = manager._calc_dte(expiration) if hasattr(manager, '_calc_dte') and expiration else None
+            
+            # Default exit rules if no metadata (10% hard stop, trailing at 10%+ profit)
+            exit_rules = meta.exit_rules if meta else BrokerExitRule(
+                stop_loss_pct=10.0,
+                profit_target_pct=50.0,
+                time_stop_dte=1,
+                trailing_step=5.0,
+            )
+            
+            # Track highest profit
+            highest_profit = meta.highest_profit_pct if meta else 0.0
+            if current_profit_pct > highest_profit:
+                highest_profit = current_profit_pct
+                if meta:
+                    manager._store.update_highest_profit(symbol, highest_profit)
+            
+            enriched = EnrichedBrokerPosition(
+                symbol=symbol,
+                qty=int(pos.qty),
+                side=pos.side,
+                avg_entry_price=entry_price,
+                current_price=current_price,
+                market_value=float(pos.market_value),
+                unrealized_pnl=unrealized_pnl,
+                unrealized_pnl_pct=unrealized_pnl_pct,
+                asset_class=pos.asset_class,
+                underlying=underlying,
+                expiration=expiration,
+                strike=strike,
+                option_type=option_type,
+                dte=dte,
+                managed=meta.managed if meta else True,  # Assume managed for monitoring
+                run_id=meta.run_id if meta else None,
+                strategy_template=meta.strategy_template if meta else None,
+                exit_rules=exit_rules,
+                entry_credit=meta.entry_credit if meta else entry_price,
+                highest_profit_pct=highest_profit,
+                current_profit_pct=current_profit_pct,
+            )
+            
+            # Skip expired positions (DTE <= 0) - they can't be traded
+            if dte is not None and dte <= 0:
+                print(f"MONITOR [{symbol}]: ⚠️ EXPIRED (DTE={dte}) - skipping (Alpaca will auto-exercise/expire)")
+                continue
+            
+            enriched_positions.append(enriched)
+            
+            print(f"MONITOR [{symbol}]: qty={pos.qty}, entry=${entry_price:.2f}, current=${current_price:.2f}, pnl={unrealized_pnl_pct:.1f}%, profit_pct={current_profit_pct:.1f}%, DTE={dte}")
         
-        logger.info(f"Monitoring {len(all_positions)} positions ({len(paper_positions)} paper, {len(alpaca_positions)} Alpaca)")
+        logger.info(f"Monitoring {len(enriched_positions)} Alpaca positions")
         
-        # Evaluate exits for all positions
+        # Evaluate exit triggers for ALL positions
         exit_signals = await manager.evaluate_exits(
-            positions=all_positions,
+            positions=enriched_positions,
             news_shocks=sentiment.shock_headlines if hasattr(sentiment, 'shock_headlines') else [],
         )
+        
+        print(f"MONITOR: Got {len(exit_signals)} exit signals")
         
         for signal in exit_signals:
             action = MonitoringAction(
@@ -1240,50 +1311,100 @@ class UnifiedAutopilotEngine:
                 threshold=signal.threshold,
             )
             
+            print(f"MONITOR: 🔔 EXIT SIGNAL: {signal.symbol} - {signal.trigger.value} (value={signal.trigger_value:.1f}%, threshold={signal.threshold:.1f}%, urgency={signal.urgency})")
             logger.info(f"🔔 EXIT SIGNAL: {signal.symbol} - {signal.trigger.value} (value={signal.trigger_value:.1f}%, threshold={signal.threshold:.1f}%)")
             
             # Execute exit if urgent and not dry run
             if signal.urgency == "immediate" and not dry_run:
+                print(f"MONITOR: 🚀 EXECUTING SELL for {signal.symbol}")
                 try:
-                    # For paper positions, just unregister them
-                    if signal.symbol in [p.symbol for p in paper_positions]:
-                        manager.unregister_position(signal.symbol)
+                    # Close position via Alpaca API
+                    order = await client.close_position(signal.symbol)
+                    if order:
+                        action.order_id = str(order.id) if hasattr(order, 'id') else str(order)
                         action.success = True
-                        logger.info(f"✅ Paper position closed: {signal.symbol} ({signal.trigger.value})")
+                        print(f"MONITOR: ✅ SELL ORDER PLACED: {signal.symbol} - order_id={action.order_id}")
+                        logger.info(f"✅ Exit executed: {signal.symbol} ({signal.trigger.value}) - order_id={action.order_id}")
+                        
+                        # Unregister from metadata store
+                        manager.unregister_position(signal.symbol)
                     else:
-                        # Try Alpaca close for real positions
-                        order = await client.close_position(signal.symbol)
-                        if order:
-                            action.order_id = order.id
-                            action.success = True
-                            logger.info(f"✅ Exit executed: {signal.symbol} ({signal.trigger.value})")
-                        else:
-                            action.error = "Failed to close position"
+                        action.error = "close_position returned None"
+                        print(f"MONITOR: ❌ SELL FAILED: {signal.symbol} - close_position returned None")
                 except Exception as e:
                     action.error = str(e)
+                    print(f"MONITOR: ❌ SELL EXCEPTION: {signal.symbol} - {e}")
                     logger.error(f"❌ Exit failed: {e}")
+            elif signal.urgency != "immediate":
+                print(f"MONITOR: ℹ️ Alert (non-urgent): {signal.symbol} - {signal.trigger.value}")
+            else:
+                print(f"MONITOR: ⏸️ Dry run - would sell {signal.symbol}")
             
             actions.append(action)
         
         return actions
     
-    def _check_risk_budget(self, positions: List[UnifiedPosition]) -> bool:
-        """Check if risk budget allows new entries."""
+    async def _get_daily_trade_count(self) -> int:
+        """Get number of orders placed today via Alpaca."""
+        from .alpaca_client import get_alpaca_client
+        from datetime import date
+        
+        try:
+            client = get_alpaca_client()
+            orders = await client.list_orders(status="all", limit=500)
+            today = date.today()
+            today_orders = [o for o in orders if hasattr(o, 'created_at') and o.created_at.date() == today]
+            return len(today_orders)
+        except Exception as e:
+            logger.warning(f"Failed to get daily trade count: {e}")
+            return 0
+    
+    def _check_risk_budget(self, positions: List[UnifiedPosition], daily_trades: int = 0) -> bool:
+        """
+        Check if risk budget allows new entries.
+        
+        Rules:
+        - Max 5 positions total
+        - Max 10 trades per day
+        - Max $1000 total capital at risk
+        - Max 1 position per underlying
+        """
         from .config import get_autopilot_config
 
         config = get_autopilot_config()
         
-        # Count managed positions
-        managed_count = sum(1 for p in positions if p.managed)
+        # Count ALL option positions (not just managed), excluding expired
+        option_positions = [p for p in positions if p.asset_class == "us_option"]
+        # Exclude expired positions (DTE <= 0) from count
+        active_positions = [p for p in option_positions if p.dte is None or p.dte > 0]
+        total_count = len(active_positions)
         
-        # Check max positions
-        if managed_count >= config.risk_limits.max_open_positions:
-            logger.info(f"Risk budget: max positions reached ({managed_count}/{config.risk_limits.max_open_positions})")
+        # Count unique underlyings
+        underlyings = set(p.underlying or p.symbol for p in active_positions)
+        
+        print(f"RISK CHECK: {total_count} active positions ({len(option_positions) - total_count} expired), {len(underlyings)} underlyings, {daily_trades} trades today")
+        
+        # Check daily trade limit FIRST
+        max_daily = getattr(config.risk_limits, 'max_daily_trades', 10)
+        if daily_trades >= max_daily:
+            print(f"RISK CHECK: BLOCKED - daily trade limit reached ({daily_trades}/{max_daily})")
+            logger.info(f"Risk budget: daily trade limit reached ({daily_trades}/{max_daily})")
             return False
         
-        # Check total risk (sum of max_loss)
-        # TODO: Implement proper risk calculation
+        # Check max positions (STRICT - count individual legs)
+        if total_count >= config.risk_limits.max_open_positions:
+            print(f"RISK CHECK: BLOCKED - max positions reached ({total_count}/{config.risk_limits.max_open_positions})")
+            logger.info(f"Risk budget: max positions reached ({total_count}/{config.risk_limits.max_open_positions})")
+            return False
         
+        # Check total market value against budget (only active positions)
+        total_value = sum(abs(p.market_value) for p in active_positions)
+        if total_value >= config.paper_equity:
+            print(f"RISK CHECK: BLOCKED - budget exhausted (${total_value:.2f} >= ${config.paper_equity:.2f})")
+            logger.info(f"Risk budget: budget exhausted (${total_value:.2f} >= ${config.paper_equity:.2f})")
+            return False
+        
+        print(f"RISK CHECK: OK - {total_count}/{config.risk_limits.max_open_positions} active positions, ${total_value:.2f}/${config.paper_equity:.2f} budget, {daily_trades}/{max_daily} trades")
         return True
     
     async def _generate_candidates(
@@ -1292,16 +1413,39 @@ class UnifiedAutopilotEngine:
         sentiment: SentimentSnapshot,
         positions: List[UnifiedPosition],
     ) -> List[Dict]:
-        """Generate trade candidates using existing candidate generator."""
+        """
+        Generate trade candidates using enhanced multi-factor intelligence engine.
+        
+        Uses the Trading Intelligence Engine for:
+        - Multi-factor scoring (technical, momentum, volatility, sentiment)
+        - Dynamic strategy selection based on market conditions
+        - Risk-adjusted position sizing
+        - Market regime awareness
+        """
         from .candidates import CandidateGenerator
         from .config import get_autopilot_config
         from .universe import UniverseManager
         from .features import FeatureEngine
+        from .data_fetcher import get_data_provider
+        
+        # Try to use enhanced generator, fall back to basic if unavailable
+        try:
+            from .enhanced_candidates import EnhancedCandidateGenerator
+            use_enhanced = True
+            logger.info("Using Enhanced Trading Intelligence Engine")
+        except ImportError:
+            use_enhanced = False
+            logger.info("Using basic candidate generator")
 
         config = get_autopilot_config()
         universe = UniverseManager(config.universe)
         feature_engine = FeatureEngine()
-        generator = CandidateGenerator(config, universe, feature_engine)
+        base_generator = CandidateGenerator(config, universe, feature_engine)
+        
+        # Create enhanced generator if available
+        if use_enhanced:
+            from .enhanced_candidates import EnhancedCandidateGenerator
+            enhanced_generator = EnhancedCandidateGenerator(config, base_generator)
         
         # Get current symbols in positions
         held_symbols = {p.underlying or p.symbol for p in positions}
@@ -1315,14 +1459,19 @@ class UnifiedAutopilotEngine:
                 symbols = [s for s in symbols if s.symbol == config.focus_symbol]
 
             scored = []
+            provider = get_data_provider()
+            
             for sym_info in symbols:
                 feats = await feature_engine.get_features(sym_info.symbol)
                 if not feats:
                     continue
+                    
+                # Enhanced scoring includes more factors
                 score = (
-                    feats.trend_strength * 0.4
-                    + feats.liquidity_score * 0.4
-                    + (feats.iv_rank / 100.0) * 0.2
+                    feats.trend_strength * 0.30  # Trend importance
+                    + feats.liquidity_score * 0.30  # Liquidity critical for options
+                    + (feats.iv_rank / 100.0) * 0.25  # IV rank for premium selling
+                    + (1 - feats.avg_spread_pct * 10) * 0.15  # Tight spreads preferred
                 )
                 scored.append((sym_info.symbol, feats, score))
 
@@ -1330,29 +1479,74 @@ class UnifiedAutopilotEngine:
             top_n = 5 if not config.focus_symbol else 1
             top = scored[:top_n]
             
-            # Filter out held symbols
-            symbols = [s for s in symbols if s.symbol not in held_symbols]
+            logger.info(f"Top {len(top)} symbols by score: {[s[0] for s in top]}")
             
-            # Get features for each symbol
+            # Filter out held symbols (avoid concentration)
+            top = [(s, f, sc) for s, f, sc in top if s not in held_symbols]
+            
+            # Generate candidates for each symbol
             for symbol, features, _score in top:
                 try:
-                    symbol_candidates = await generator.generate(
-                        symbol,
-                        features,
-                        weekly_only=config.weekly_expiry_only,
-                    )
+                    if use_enhanced:
+                        # Get price history for technical analysis
+                        prices = provider.get_price_history(symbol, days=60)
+                        volumes = provider.get_volume_history(symbol, days=60)
+                        
+                        # Update enhanced generator with price history
+                        enhanced_generator.update_price_history(symbol, prices, volumes)
+                        
+                        # Get options chain
+                        expiry = provider.get_next_weekly_expiry()
+                        chain = provider.get_options_chain(symbol, expiry=expiry, weekly_only=True)
+                        chain_dict = {"chains": {expiry.strftime("%Y-%m-%d"): {
+                            "puts": [{"strike": o.strike, "bid": o.bid, "ask": o.ask, 
+                                      "delta": o.delta, "iv": getattr(o, 'iv', 0.30)}
+                                     for o in chain if o.option_type == "put"],
+                            "calls": [{"strike": o.strike, "bid": o.bid, "ask": o.ask,
+                                       "delta": o.delta, "iv": getattr(o, 'iv', 0.30)}
+                                      for o in chain if o.option_type == "call"],
+                        }}} if chain else {}
+                        
+                        # Generate enhanced candidates
+                        symbol_candidates = await enhanced_generator.generate_enhanced_candidates(
+                            symbol=symbol,
+                            features=features,
+                            option_chain=chain_dict,
+                            weekly_only=config.weekly_expiry_only,
+                        )
+                    else:
+                        # Fall back to basic generator
+                        symbol_candidates = await base_generator.generate(
+                            symbol,
+                            features,
+                            weekly_only=config.weekly_expiry_only,
+                        )
+                    
                     for c in symbol_candidates:
                         cdict = c.to_dict()
                         cdict["credit"] = cdict.get("max_profit") or cdict.get("net_premium", 0)
                         cdict["score"] = cdict.get("adjusted_score", cdict.get("base_score", 0))
+                        
+                        # Include intelligence metadata if available
+                        if hasattr(c, 'metadata') and c.metadata:
+                            cdict["intelligence"] = c.metadata
+                        
                         candidates.append(cdict)
+                        
+                        # Log reasoning for transparency
+                        reason = cdict.get("selection_reason", "")
+                        if reason:
+                            logger.info(f"[{symbol}] {c.template.value}: {reason}")
+                            
                 except Exception as e:
                     logger.debug(f"Candidate gen failed for {symbol}: {e}")
             
-            # candidates already converted to dicts
+            logger.info(f"Generated {len(candidates)} total candidates")
             
         except Exception as e:
             logger.error(f"Candidate generation failed: {e}")
+            import traceback
+            traceback.print_exc()
         
         return candidates
     
@@ -1477,6 +1671,7 @@ class UnifiedAutopilotEngine:
         existing_underlyings = set()
         try:
             alpaca_positions = await client.list_positions()
+            print(f"EXEC DEBUG: Found {len(alpaca_positions)} Alpaca positions")
             for pos in alpaca_positions:
                 # Parse underlying from OCC symbol
                 symbol = pos.symbol
@@ -1484,6 +1679,7 @@ class UnifiedAutopilotEngine:
                     if c.isdigit():
                         existing_underlyings.add(symbol[:i].strip())
                         break
+            print(f"EXEC DEBUG: existing_underlyings={existing_underlyings}")
             logger.info(f"Existing positions for underlyings: {existing_underlyings}")
         except Exception as e:
             logger.warning(f"Could not fetch existing positions: {e}")
@@ -1493,18 +1689,33 @@ class UnifiedAutopilotEngine:
         
         orders = []
         
-        for candidate in candidates:
+        print(f"EXEC DEBUG: Processing {len(candidates)} candidates")
+        # Write candidates to file for debugging
+        import json
+        with open("/tmp/autopilot_candidates_debug.json", "w") as f:
+            json.dump(candidates, f, indent=2, default=str)
+        print(f"EXEC DEBUG: Wrote candidates to /tmp/autopilot_candidates_debug.json")
+        
+        for idx, candidate in enumerate(candidates):
             symbol = candidate.get("symbol", "")
             template = candidate.get("template", "put_credit_spread")
             credit = candidate.get("credit", 0)
+            print(f"EXEC DEBUG [{idx}]: symbol={symbol}, template={template}, credit={credit}")
             
-            # Skip if we already have a position in this underlying
-            if symbol in existing_underlyings:
-                logger.info(f"⏭️ Skipping {symbol} - already have position")
+            # Skip if we already have a MANAGED position in this underlying (not just any position)
+            # We only skip if we have a position that's actively being managed by this autopilot
+            # Unmanaged positions from previous runs shouldn't block new trades
+            # TODO: Add proper check for managed positions from broker_position_manager
+            skip_due_to_existing = False  # Disabled for now - position manager handles this
+            if skip_due_to_existing and symbol in existing_underlyings:
+                print(f"EXEC DEBUG [{idx}]: SKIPPING - already have managed position")
+                logger.info(f"⏭️ Skipping {symbol} - already have managed position")
                 continue
             
+            print(f"EXEC DEBUG [{idx}]: Generating client_order_id")
             client_order_id = self._generate_client_order_id(run_id, template, symbol)
             
+            print(f"EXEC DEBUG [{idx}]: Creating order_record")
             order_record = OrderRecord(
                 client_order_id=client_order_id,
                 symbol=symbol,
@@ -1515,10 +1726,14 @@ class UnifiedAutopilotEngine:
                 submitted_at=datetime.now(),
             )
             
+            print(f"EXEC DEBUG [{idx}]: Entering try block")
             try:
                 # Build TradeCandidate from dict for broker submission
                 legs_data = candidate.get("legs", [])
+                print(f"EXEC DEBUG [{idx}]: legs_data={legs_data}")
+                logger.info(f"🔍 Processing candidate {symbol}: legs_data={legs_data}")
                 if not legs_data:
+                    print(f"EXEC DEBUG [{idx}]: NO LEGS in candidate.get('legs') - attempting to construct from candidate data")
                     # If no legs, try to construct from candidate data
                     short_strike = candidate.get("short_strike", 0)
                     long_strike = candidate.get("long_strike", 0)
@@ -1539,6 +1754,7 @@ class UnifiedAutopilotEngine:
                         ]
                 
                 if legs_data:
+                    print(f"EXEC DEBUG [{idx}]: Constructing {len(legs_data)} legs from legs_data")
                     legs = []
                     for l in legs_data:
                         leg_expiry = l.get("expiry")
@@ -1579,8 +1795,11 @@ class UnifiedAutopilotEngine:
                     )
                     
                     # Submit order via broker
+                    print(f"EXEC DEBUG [{idx}]: Submitting order with {len(trade_candidate.legs)} legs")
                     logger.info(f"🚀 EXECUTING TRADE: {symbol} {template} @ ${credit}")
+                    logger.info(f"📦 TradeCandidate: {trade_candidate.id}, legs={len(trade_candidate.legs)}")
                     paper_order = broker.submit_order(trade_candidate)
+                    print(f"EXEC DEBUG [{idx}]: paper_order returned: {paper_order}")
                     
                     if paper_order:
                         # For Alpaca, submission is enough. We don't manually execute.
@@ -1615,6 +1834,8 @@ class UnifiedAutopilotEngine:
                         order_record.error = "Broker returned no order"
                 else:
                     # No legs - just register as a tracked position
+                    print(f"EXEC DEBUG [{idx}]: ELSE BLOCK - NO LEGS CONSTRUCTED for {symbol}")
+                    logger.warning(f"⚠️ NO LEGS CONSTRUCTED for {symbol} {template} - cannot execute trade")
                     logger.info(f"📝 REGISTERING POSITION (no legs): {symbol} {template}")
                     manager.register_position(
                         symbol=symbol,
@@ -1627,12 +1848,14 @@ class UnifiedAutopilotEngine:
                     order_record.status = "registered"
                 
             except Exception as e:
+                print(f"EXEC DEBUG [{idx}]: EXCEPTION in order processing: {e}")
                 logger.error(f"❌ Order failed for {symbol}: {e}", exc_info=True)
                 order_record.status = "rejected"
                 order_record.error = str(e)
             
             orders.append(order_record)
         
+        print(f"EXEC DEBUG: Returning {len(orders)} orders")
         return orders
     
     async def _persist_artifact(self, artifact: RunArtifact):
