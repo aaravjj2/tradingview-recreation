@@ -96,12 +96,19 @@ export const AutopilotDashboard: React.FC = () => {
     fetchStatus();
     fetchPositions('open');
 
-    // Poll status every 30 seconds
-    const interval = setInterval(() => {
+    // Poll status and positions continuously every 15 seconds
+    const statusInterval = setInterval(() => {
       fetchStatus();
-    }, 30000);
+    }, 15000);
 
-    return () => clearInterval(interval);
+    const positionsInterval = setInterval(() => {
+      fetchPositions('open');
+    }, 15000);
+
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(positionsInterval);
+    };
   }, [fetchConfig, fetchStatus, fetchPositions]);
 
   const handleRunCycle = useCallback(async () => {

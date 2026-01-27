@@ -1,0 +1,68 @@
+start_month: "2014-01"
+end_month: "2024-01"
+
+underlyings:
+  - SPY
+  - QQQ
+  - GLD
+  - SLV
+  - AAPL
+  - MSFT
+  - NVDA
+  - AMZN
+  - GOOGL
+  - META
+  - TSLA
+  - AMD
+  - AVGO
+  - ORCL
+  - NFLX
+  - INTC
+  - JPM
+  - BAC
+  - GS
+  - MS
+  - V
+  - MA
+  - UNH
+  - JNJ
+  - LLY
+  - PFE
+  - MRK
+  - XOM
+  - CVX
+  - CAT
+  - GE
+  - HON
+  - BA
+  - LMT
+  - WMT
+  - COST
+  - PG
+  - KO
+  - PEP
+  - MCD
+  - NKE
+  - SBUX
+  - DIS
+  - NEE
+  - LIN
+  - PLD
+  - CRM
+  - PANW
+
+filters:
+  require_volume_geq_0: true
+  drop_zero_volume: false
+
+storage:
+  raw_dir: "data/raw"
+  work_dir: "data/work"
+  parquet_dir: "data/parquet"
+  keep_raw: true
+  db_path: "data/pipeline.db"
+
+download:
+  max_workers: 4
+  rate_limit_rps: 4.0
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

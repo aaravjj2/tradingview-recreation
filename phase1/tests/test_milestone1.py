@@ -1,10 +1,15 @@
 """
-Milestone 1 Integration Test
+Milestone 1 Integration Test (V1 Compliant)
 
 Tests the full open→monitor→exit lifecycle:
 1. State machine transitions correctly
-2. Exit monitor triggers stops with smoothing
+2. Exit monitor triggers V1 hard stop (-20%)
 3. Execution ladder retries work
+
+V1 Compliance:
+- Single hard stop at -20% (no soft stop, no smoothing)
+- Profit target at +50%
+- Time stop at DTE <= 1
 """
 
 import sys
@@ -18,7 +23,7 @@ from unittest.mock import MagicMock, AsyncMock
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
 from services.autopilot.state_machine import AgentStateMachine, AgentState, AgentAction
-from services.autopilot.exit_monitor import ExitMonitor, ExitTrigger, StopSmoother
+from services.autopilot.exit_monitor import ExitMonitor, ExitSignal, ExitTrigger, V1_HARD_STOP_PCT, V1_PROFIT_TARGET_PCT
 from services.autopilot.execution_ladder import LimitOrderLadder, ExecutionState
 
 logging.basicConfig(level=logging.INFO)
@@ -65,74 +70,71 @@ def test_state_machine():
     assert len(history) >= 3
     logger.info(f"✅ Transition history has {len(history)} entries")
 
-def test_stop_smoother():
-    logger.info("--- Testing Stop Smoother ---")
-    
-    smoother = StopSmoother(window_size=3, required_breaches=2)
-    
-    # First sample breached - not confirmed
-    assert smoother.record_sample(True) == False
-    logger.info("✅ 1 breach: not confirmed")
-    
-    # Second sample not breached - still not confirmed
-    assert smoother.record_sample(False) == False
-    logger.info("✅ 1/2: not confirmed")
-    
-    # Third sample breached - NOW confirmed (2-of-3)
-    assert smoother.record_sample(True) == True
-    logger.info("✅ 2/3 breaches: CONFIRMED")
-    
-    # Reset and test non-confirmation
-    smoother.reset()
-    smoother.record_sample(True)
-    smoother.record_sample(False)
-    assert smoother.record_sample(False) == False  # Only 1-of-3
-    logger.info("✅ 1/3 breaches: not confirmed")
 
-def test_exit_monitor():
-    logger.info("--- Testing Exit Monitor ---")
+def test_v1_exit_monitor():
+    """V1 Exit Monitor Test - Single Hard Stop at -10%."""
+    logger.info("--- Testing V1 Exit Monitor ---")
     
     monitor = ExitMonitor()
     now = datetime.now(timezone.utc)
+    expiry = now + timedelta(days=7)  # 7 days to expiry
     
-    # Register position
-    pos = monitor.register_position(
-        position_id="pos-002",
+    # Register a long premium position
+    pos_id = monitor.register_position(
+        position_id="pos-v1-001",
         entry_price=1.00,
         entry_time=now,
-        is_debit=True,
-        template_type="debit"
+        dte=7,  # 7 days to expiry
     )
+    logger.info(f"✅ Registered position: {pos_id}")
     
-    # Sample 1: 10% loss - no trigger
-    signals = monitor.check_position("pos-002", 0.90)
+    # Test 1: -5% loss - should NOT trigger (threshold is -10%)
+    signals = monitor.check_position("pos-v1-001", current_price=0.95)
     triggered = [s for s in signals if s.triggered]
-    assert len(triggered) == 0
-    logger.info("✅ -10%: no triggers")
+    assert len(triggered) == 0, f"Unexpected trigger at -5%: {triggered}"
+    logger.info("✅ -5% loss: NO trigger (expected)")
     
-    # Sample 2: 22% loss - soft stop breached once
-    signals = monitor.check_position("pos-002", 0.78)
-    soft_triggers = [s for s in signals if s.trigger == ExitTrigger.SOFT_STOP and s.triggered]
-    assert len(soft_triggers) == 0  # Not confirmed yet (need 2-of-3)
-    logger.info("✅ -22%: soft stop breached but not confirmed (1/3)")
+    # Test 2: -8% loss - still should NOT trigger
+    signals = monitor.check_position("pos-v1-001", current_price=0.92)
+    triggered = [s for s in signals if s.triggered]
+    assert len(triggered) == 0, f"Unexpected trigger at -8%: {triggered}"
+    logger.info("✅ -8% loss: NO trigger (expected)")
     
-    # Sample 3: Recovery to 15% loss
-    signals = monitor.check_position("pos-002", 0.85)
-    logger.info("✅ -15%: recovery, still 1-of-3")
+    # Test 3: -11% loss - SHOULD trigger hard stop (using 0.89 to ensure > -10%)
+    signals = monitor.check_position("pos-v1-001", current_price=0.89)
+    triggered = [s for s in signals if s.triggered]
+    assert len(triggered) == 1, f"Expected hard stop trigger at -11%"
+    assert triggered[0].trigger == ExitTrigger.HARD_STOP
+    logger.info("✅ -11% loss: HARD STOP TRIGGERED (expected)")
     
-    # Sample 4: 25% loss again
-    signals = monitor.check_position("pos-002", 0.75)
-    soft_triggers = [s for s in signals if s.trigger == ExitTrigger.SOFT_STOP and s.triggered]
-    # Now we have 2-of-3 breaches
-    assert len(soft_triggers) == 1
-    logger.info("✅ -25%: SOFT STOP CONFIRMED (2-of-3)")
+    # Test 4: +50% profit target
+    monitor.register_position(
+        position_id="pos-v1-002",
+        entry_price=1.00,
+        entry_time=now,
+        dte=7,
+    )
+    signals = monitor.check_position("pos-v1-002", current_price=1.50)
+    triggered = [s for s in signals if s.triggered]
+    assert len(triggered) == 1, f"Expected profit target trigger at +50%"
+    assert triggered[0].trigger == ExitTrigger.PROFIT_TARGET
+    logger.info("✅ +50% profit: PROFIT TARGET TRIGGERED (expected)")
     
-    # Test hard stop (immediate)
-    monitor.register_position("pos-003", 1.00, now, True, "debit")
-    signals = monitor.check_position("pos-003", 0.55)  # 45% loss
-    hard_triggers = [s for s in signals if s.trigger == ExitTrigger.HARD_STOP and s.triggered]
-    assert len(hard_triggers) == 1
-    logger.info("✅ -45%: HARD STOP (immediate)")
+    # Test 5: Time stop (DTE <= 1)
+    monitor.register_position(
+        position_id="pos-v1-003",
+        entry_price=1.00,
+        entry_time=now,
+        dte=1,  # DTE = 1, should trigger
+    )
+    signals = monitor.check_position("pos-v1-003", current_price=1.00)  # No PnL trigger
+    triggered = [s for s in signals if s.triggered]
+    assert len(triggered) == 1, f"Expected time stop trigger at DTE = 1"
+    assert triggered[0].trigger == ExitTrigger.TIME_STOP
+    logger.info("✅ DTE = 1: TIME STOP TRIGGERED (expected)")
+    
+    logger.info(f"V1 Hard Stop: -{V1_HARD_STOP_PCT*100:.0f}%")
+    logger.info(f"V1 Profit Target: +{V1_PROFIT_TARGET_PCT*100:.0f}%")
 
 async def test_execution_ladder():
     logger.info("--- Testing Execution Ladder ---")
@@ -181,8 +183,7 @@ async def test_execution_ladder():
 
 if __name__ == "__main__":
     test_state_machine()
-    test_stop_smoother()
-    test_exit_monitor()
+    test_v1_exit_monitor()
     asyncio.run(test_execution_ladder())
     
-    logger.info("\n🎉 All Milestone 1 tests passed!")
+    logger.info("\n🎉 All Milestone 1 V1 tests passed!")

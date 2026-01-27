@@ -105,7 +105,7 @@ class DecisionEngine:
     """
     
     # Universe per spec
-    UNIVERSE = ["SPY", "GLD", "SLV", "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
+    UNIVERSE = ["SPY", "GLD", "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
     
     def __init__(
         self,

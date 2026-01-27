@@ -68,7 +68,7 @@ class AdvancedIndicators:
             return None
         
         anchor_bar = bars[anchor_index]
-        anchor_time = datetime.fromtimestamp(anchor_bar.time)
+        anchor_time = datetime.fromtimestamp(anchor_bar.ts_start_ms / 1000)
         anchor_price = (anchor_bar.high + anchor_bar.low + anchor_bar.close) / 3
         
         # Calculate VWAP from anchor point
@@ -99,7 +99,7 @@ class AdvancedIndicators:
             variance = (cumulative_tp_sq_v / cumulative_volume) - (vwap ** 2)
             std_dev = variance ** 0.5 if variance > 0 else 0
             
-            bar_time = datetime.fromtimestamp(bar.time)
+            bar_time = datetime.fromtimestamp(bar.ts_start_ms / 1000)
             vwap_data.append((bar_time, vwap))
             upper_1std.append((bar_time, vwap + std_dev))
             lower_1std.append((bar_time, vwap - std_dev))
@@ -146,9 +146,9 @@ class AdvancedIndicators:
         
         for i in range(len(bars)):
             if i == 0:
-                atr_values.append((datetime.fromtimestamp(bars[i].time), 0.0))
-                upper_band.append((datetime.fromtimestamp(bars[i].time), bars[i].close))
-                lower_band.append((datetime.fromtimestamp(bars[i].time), bars[i].close))
+                atr_values.append((datetime.fromtimestamp(bars[i].ts_start_ms / 1000), 0.0))
+                upper_band.append((datetime.fromtimestamp(bars[i].ts_start_ms / 1000), bars[i].close))
+                lower_band.append((datetime.fromtimestamp(bars[i].ts_start_ms / 1000), bars[i].close))
                 continue
             
             # Calculate True Range
@@ -169,7 +169,7 @@ class AdvancedIndicators:
                 # Smoothed ATR (Wilder's smoothing)
                 atr = (atr * (atr_period - 1) + tr) / atr_period
             
-            bar_time = datetime.fromtimestamp(bars[i].time)
+            bar_time = datetime.fromtimestamp(bars[i].ts_start_ms / 1000)
             atr_values.append((bar_time, atr))
             upper_band.append((bar_time, bars[i].close + multiplier * atr))
             lower_band.append((bar_time, bars[i].close - multiplier * atr))

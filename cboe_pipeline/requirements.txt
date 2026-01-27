@@ -1,0 +1,11 @@
+requests
+pandas
+polars
+pyarrow
+playwright
+pyyaml
+tqdm
+sqlalchemy
+duckdb
+pytest
+tenacity

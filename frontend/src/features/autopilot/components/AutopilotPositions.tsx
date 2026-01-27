@@ -186,6 +186,13 @@ export const AutopilotPositions: React.FC = () => {
 
   useEffect(() => {
     fetchPositions(filter === 'all' ? undefined : filter);
+
+    // Poll positions every 15 seconds for continuous updates
+    const interval = setInterval(() => {
+      fetchPositions(filter === 'all' ? undefined : filter);
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, [filter, fetchPositions]);
 
   const toggleExpand = (id: string) => {

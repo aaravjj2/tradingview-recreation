@@ -88,6 +88,8 @@ class RegimeResult:
             "features": self.features.to_dict(),
         }
 
+from .ml_regime_adapter import MLRegimeAdapter
+
 class RegimeClassifier:
     """
     Deterministic regime classifier.
@@ -104,6 +106,8 @@ class RegimeClassifier:
     def __init__(self, lookback_bars: int = 20):
         self.lookback = lookback_bars
         self._cache: Dict[str, RegimeResult] = {}
+        # Hybrid ML Adapter
+        self.ml_adapter = MLRegimeAdapter()
     
     def classify(
         self,
@@ -141,6 +145,31 @@ class RegimeClassifier:
         
         # Classify based on features
         regime, confidence = self._classify_from_features(features)
+
+        # -----------------------------------------------------
+        # Hybrid Logic: Apply ML 4D Lattice Overrides
+        # -----------------------------------------------------
+        if hasattr(self, 'ml_adapter'):
+            lattice = self.ml_adapter.predict_lattice_state(bars)
+            
+            # Risk Off Override: If ML says Risk Off (Vol=1), cap confidence or force Chaos
+            if lattice.vol_regime == 1:
+                if regime in [MarketRegime.TREND_UP, MarketRegime.TREND_DOWN]:
+                    # Downgrade Trend to Range or Chaos based on severity
+                    regime = MarketRegime.CHAOS
+                    confidence = 0.6  # High confidence in chaos
+            
+            # Trend Quality Boost: If ML says Robust Trend (Quality=1), boost confidence
+            if lattice.trend_quality == 1 and regime in [MarketRegime.TREND_UP, MarketRegime.TREND_DOWN]:
+                confidence = min(1.0, confidence + 0.2)
+                
+            # Liquidity Stress: If Stressed, force lower confidence
+            if lattice.liquidity_stress == 1:
+                confidence *= 0.8
+                
+            # Info State: If Drifting (Momentum without conviction), slight penalty
+            if lattice.info_state == 1:
+                confidence *= 0.9
         
         result = RegimeResult(
             symbol=symbol,
@@ -265,8 +294,8 @@ class RegimeClassifier:
             return MarketRegime.TREND_UP, 0.5
         elif f.ma_slope_20 < 0:
             return MarketRegime.TREND_DOWN, 0.5
-        
-        return MarketRegime.RANGE, 0.5
+        # Neutral (slope == 0) - treat as range
+        return MarketRegime.RANGE, 0.3
     
     def _compute_slope(self, prices: List[float]) -> float:
         """Compute linear regression slope."""

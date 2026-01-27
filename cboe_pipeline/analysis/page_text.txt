@@ -1,0 +1,150 @@
+Markets
+Data
+Solutions
+Insights & Education
+About Us
+Sign In
+US Options
+Intraday
+Reference Data
+Product Data
+Volatility Settlement EOI
+Post and Station
+Daily Market Statistics
+Class Appointment Files
+Final Indicative Price
+Historical Options Data
+Maker Opportunity
+Index Settlement Values
+RPC Reports
+Historical Options Data Download
+
+Use this form to download historical options volume across the Cboe exchanges by a single symbol, a product type, or all symbols for a month or year.
+
+Go beyond the basics
+
+Get custom VIX options and futures historical data on-demand at Cboe DataShop
+
+Symbol
+All Symbols
+EXCHANGES
+*
+CBOE
+BATS
+C2
+EDGX
+SYMBOL TYPE
+*
+Options Class
+Underlying
+SYMBOL
+*
+CALCULATE VOLUME AS
+*
+Daily
+Weekly
+Monthly
+Annually
+BEGIN DATE
+*
+END DATE
+*
+DISPLAY VOLUME AS
+Sum
+ADV
+Download Report
+
+Note: Average Daily Volume (ADV) is calculated by dividing a symbol’s total volume by the number of trading days between the selected ‘Begin Date’ and ‘End Date’. For example, in a monthly ADV query from December 6th, 2019 to December 30th, 2019 there are 17 trading days. The ADV for that month will equal the sum of a symbol’s volume in that range divided by 17. The number of trading days will not change if a symbol was not listed or had a zero-volume day during that interval.
+
+Cboe Volume & Put/Call Ratios
+
+Cboe Volume and Put/Call Ratio data is compiled for the convenience of site visitors and is furnished without responsibility for accuracy and is accepted by the site visitor on the condition that transmission or omissions shall not be made the basis for any claim, demand or cause for action. The information and data was obtained from sources believed to be reliable, but accuracy is not guaranteed. Your use of Cboe Volume and Put/Call Ratio data is subject to the Terms and Conditions of Cboe Websites.
+
+Any questions about the data may be directed to the Cboe Help Desk at (866) 728-2263.
+
+For current market data please see Cboe Daily Market Statistics. For custom, detailed historical data, visit Cboe DataShop.
+
+Recent:
+Cboe Total Exchange Volume and Put/Call Ratios
+- (11-01-2006 to 10-04-2019)
+Cboe Index Volume and Put/Call Ratios
+- (11-01-2006 to 10-04-2019)
+Cboe Equity Volume and Put/Call Ratios
+- (11-01-2006 to 10-04-2019)
+Cboe Exchange Traded Product (ETPs) Volume and Put/Call Ratios
+- (11-01-2006 to 10-04-2019)
+Cboe Volatility Index
+®
+(VIX
+®
+) Volume and Put/CallRatios
+- (2-24-2006 to 10-04-2019)
+Archive:
+Cboe Total Exchange Volume and Put/Call Ratios Archive
+Cboe Index Volume and Put/Call Ratios Archive
+Cboe Equity Volume and Put/Call Ratios Archive
+Cboe Total, Index, and Equity Put/Call Ratio Archive
+- (Total from 09-27-1995 to 12-31-2003, Index and Equity from 10-21-2003 to 12-31-2003)
+Cboe S&P 500 Index
+®
+(SPX
+®
+) Volume and Put/Call Ratio Archive
+Cboe Equity Option Volume Archive
+
+Cboe Equity Option Volume Archive files are in .xls format. To save these files locally, right click and select "Save Target As" or "Save Link As", as the case may be. These data files will open quickly in compatible spreadsheet programs, and can be sorted according to your personal specifications.
+
+Cboe Equity Option Volume is provided for informational purposes only. Cboe makes no guarantee as to the accuracy of the data. Your use of Cboe Equity Option Volume is subject to the Terms and Conditions of the Cboe Website.
+
+PLEASE NOTE: 2006 and 2007 Equity Option Volume files are sorted by TOTAL AVERAGE DAILY VOLUME (ADV).
+
+Starting September 2019, historical equity options volume can be acquired through the Historical Options Data download webpage.
+
+YEAR
+2019
+08/2019
+07/2019
+06/2019
+05/2019
+04/2019
+03/2019
+02/2019
+01/2019
+Cboe Penny Class Archive
+
+For Penny Class Archive please see Penny Class Archive
+
+©2025 Cboe Exchange, Inc. All rights reserved.
+
+About
+
+About Us
+Careers
+Cboe Empowers
+Corporate Stewardship
+Hours & Holidays
+Investor Relations
+Press Releases
+Public Policy
+
+Legal
+
+Accessibility
+Biometric Information Privacy Policy
+California Notice at Collection
+Copyright, Trademark & Patents
+Notice of Financial Incentive
+OCC & Investor Protection
+Privacy Statement
+Terms & Conditions
+Use of Content
+Your Privacy Choices
+We value your privacy
+This website uses cookies and similar technologies, some of which are provided by third parties. These cookies enable us and these third parties to enhance your browsing experience, serve personalized content and track your interactions with this website. You can accept cookies by clicking “Accept All,” reject them by clicking “Reject All,” or modify which cookies you want to allow by going to “Cookies Settings”.
+
+
+Please review the Terms and Conditions for Use of Cboe Websites, which contain important risk disclosures and disclaimers of liability. By continuing to use Cboe websites, you acknowledge that you have read and accept the Terms and Conditions for Use of Cboe Websites.
+
+Cookies Settings
+Reject All
+Accept All

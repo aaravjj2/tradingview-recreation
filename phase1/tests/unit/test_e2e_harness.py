@@ -19,7 +19,7 @@ sys.path.insert(0, '/home/aarav/Aarav/Tradingview recreation/phase1')
 
 from tests.e2e.harness import (
     ServerConfig,
-    TestContext,
+    E2ETestContext,
     ServerManager,
     WebSocketRecorder,
     VisualVerifier,
@@ -47,12 +47,12 @@ class TestServerConfig:
         assert config.port == 9000
 
 
-class TestTestContext:
-    """Tests for TestContext."""
+class TestE2ETestContextClass:
+    """Tests for E2ETestContext."""
     
     def test_create(self):
         """Should create context."""
-        ctx = TestContext(
+        ctx = E2ETestContext(
             server_url="http://localhost:8765",
             ws_url="ws://localhost:8765/ws",
             page=MagicMock(),
@@ -272,7 +272,7 @@ class TestE2ETestRunner:
         async def passing_test(ctx):
             assert True
         
-        ctx = TestContext(
+        ctx = E2ETestContext(
             server_url="http://localhost",
             ws_url="ws://localhost/ws",
             page=AsyncMock(),
@@ -293,7 +293,7 @@ class TestE2ETestRunner:
             raise AssertionError("Test failed")
         
         page = AsyncMock()
-        ctx = TestContext(
+        ctx = E2ETestContext(
             server_url="http://localhost",
             ws_url="ws://localhost/ws",
             page=page,

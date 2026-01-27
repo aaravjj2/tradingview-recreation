@@ -8,28 +8,39 @@
 
 **Built with the tools and technologies:**
 
-<img src="https://img.shields.io/badge/Python-3776AB.svg?style=default&logo=Python&logoColor=white" alt="Python">
-<img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=default&logo=TypeScript&logoColor=white" alt="TypeScript">
-<img src="https://img.shields.io/badge/React-61DAFB.svg?style=default&logo=React&logoColor=black" alt="React">
-<img src="https://img.shields.io/badge/FastAPI-009688.svg?style=default&logo=FastAPI&logoColor=white" alt="FastAPI">
-<img src="https://img.shields.io/badge/Vite-646CFF.svg?style=default&logo=Vite&logoColor=white" alt="Vite">
-<img src="https://img.shields.io/badge/SQLAlchemy-D71F00.svg?style=default&logo=SQLAlchemy&logoColor=white" alt="SQLAlchemy">
-<img src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style=default&logo=JavaScript&logoColor=black" alt="JavaScript">
-<img src="https://img.shields.io/badge/npm-CB3837.svg?style=default&logo=npm&logoColor=white" alt="npm">
-<img src="https://img.shields.io/badge/Docker-2496ED.svg?style=default&logo=Docker&logoColor=white" alt="Docker">
-<img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?style=default&logo=Pytest&logoColor=white" alt="Pytest">
-<img src="https://img.shields.io/badge/NumPy-013243.svg?style=default&logo=NumPy&logoColor=white" alt="NumPy">
-<img src="https://img.shields.io/badge/pandas-150458.svg?style=default&logo=pandas&logoColor=white" alt="pandas">
-<img src="https://img.shields.io/badge/ESLint-4B32C3.svg?style=default&logo=ESLint&logoColor=white" alt="ESLint">
-<img src="https://img.shields.io/badge/PostCSS-DD3A0A.svg?style=default&logo=PostCSS&logoColor=white" alt="PostCSS">
-<img src="https://img.shields.io/badge/Playwright-45ba4b.svg?style=default&logo=Playwright&logoColor=white" alt="Playwright">
-<img src="https://img.shields.io/badge/Vitest-6E9F18.svg?style=default&logo=Vitest&logoColor=white" alt="Vitest">
-<img src="https://img.shields.io/badge/Zod-3E67B1.svg?style=default&logo=Zod&logoColor=white" alt="Zod">
-<img src="https://img.shields.io/badge/.ENV-ECD53F.svg?style=default&logo=dotenv&logoColor=black" alt=".ENV">
-<img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style=default&logo=GitHub-Actions&logoColor=white" alt="GitHub Actions">
-<img src="https://img.shields.io/badge/Prettier-F7B93E.svg?style=default&logo=Prettier&logoColor=black" alt="Prettier">
-<img src="https://img.shields.io/badge/Black-000000.svg?style=default&logo=Black&logoColor=white" alt="Black">
-<img src="https://img.shields.io/badge/Ruff-D7FF64.svg?style=default&logo=Ruff&logoColor=black" alt="Ruff">
+<img src="https://img.shields.io/badge/JSON-000000.svg?style=flat-square&logo=JSON&logoColor=white" alt="JSON">
+<img src="https://img.shields.io/badge/npm-CB3837.svg?style=flat-square&logo=npm&logoColor=white" alt="npm">
+<img src="https://img.shields.io/badge/Autoprefixer-DD3735.svg?style=flat-square&logo=Autoprefixer&logoColor=white" alt="Autoprefixer">
+<img src="https://img.shields.io/badge/SQLAlchemy-D71F00.svg?style=flat-square&logo=SQLAlchemy&logoColor=white" alt="SQLAlchemy">
+<img src="https://img.shields.io/badge/PostCSS-DD3A0A.svg?style=flat-square&logo=PostCSS&logoColor=white" alt="PostCSS">
+<img src="https://img.shields.io/badge/TOML-9C4121.svg?style=flat-square&logo=TOML&logoColor=white" alt="TOML">
+<img src="https://img.shields.io/badge/Polars-CD792C.svg?style=flat-square&logo=Polars&logoColor=white" alt="Polars">
+<img src="https://img.shields.io/badge/tqdm-FFC107.svg?style=flat-square&logo=tqdm&logoColor=black" alt="tqdm">
+<img src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style=flat-square&logo=JavaScript&logoColor=black" alt="JavaScript">
+<img src="https://img.shields.io/badge/DuckDB-FFF000.svg?style=flat-square&logo=DuckDB&logoColor=black" alt="DuckDB">
+<img src="https://img.shields.io/badge/Ruff-D7FF64.svg?style=flat-square&logo=Ruff&logoColor=black" alt="Ruff">
+<img src="https://img.shields.io/badge/Vitest-6E9F18.svg?style=flat-square&logo=Vitest&logoColor=white" alt="Vitest">
+<img src="https://img.shields.io/badge/GNU%20Bash-4EAA25.svg?style=flat-square&logo=GNU-Bash&logoColor=white" alt="GNU%20Bash">
+<img src="https://img.shields.io/badge/Immer-00E7C3.svg?style=flat-square&logo=Immer&logoColor=white" alt="Immer">
+<img src="https://img.shields.io/badge/FastAPI-009688.svg?style=flat-square&logo=FastAPI&logoColor=white" alt="FastAPI">
+<img src="https://img.shields.io/badge/React-61DAFB.svg?style=flat-square&logo=React&logoColor=black" alt="React">
+<br>
+<img src="https://img.shields.io/badge/NumPy-013243.svg?style=flat-square&logo=NumPy&logoColor=white" alt="NumPy">
+<img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?style=flat-square&logo=Pytest&logoColor=white" alt="Pytest">
+<img src="https://img.shields.io/badge/Docker-2496ED.svg?style=flat-square&logo=Docker&logoColor=white" alt="Docker">
+<img src="https://img.shields.io/badge/Python-3776AB.svg?style=flat-square&logo=Python&logoColor=white" alt="Python">
+<img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=flat-square&logo=TypeScript&logoColor=white" alt="TypeScript">
+<img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style=flat-square&logo=GitHub-Actions&logoColor=white" alt="GitHub%20Actions">
+<img src="https://img.shields.io/badge/AIOHTTP-2C5BB4.svg?style=flat-square&logo=AIOHTTP&logoColor=white" alt="AIOHTTP">
+<img src="https://img.shields.io/badge/Vite-646CFF.svg?style=flat-square&logo=Vite&logoColor=white" alt="Vite">
+<img src="https://img.shields.io/badge/ESLint-4B32C3.svg?style=flat-square&logo=ESLint&logoColor=white" alt="ESLint">
+<img src="https://img.shields.io/badge/pandas-150458.svg?style=flat-square&logo=pandas&logoColor=white" alt="pandas">
+<img src="https://img.shields.io/badge/Axios-5A29E4.svg?style=flat-square&logo=Axios&logoColor=white" alt="Axios">
+<img src="https://img.shields.io/badge/CSS-663399.svg?style=flat-square&logo=CSS&logoColor=white" alt="CSS">
+<img src="https://img.shields.io/badge/datefns-770C56.svg?style=flat-square&logo=date-fns&logoColor=white" alt="datefns">
+<img src="https://img.shields.io/badge/Pydantic-E92063.svg?style=flat-square&logo=Pydantic&logoColor=white" alt="Pydantic">
+<img src="https://img.shields.io/badge/Chart.js-FF6384.svg?style=flat-square&logo=chartdotjs&logoColor=white" alt="Chart.js">
+<img src="https://img.shields.io/badge/YAML-CB171E.svg?style=flat-square&logo=YAML&logoColor=white" alt="YAML">
 
 [Features](#-key-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Documentation](#-documentation)
 
@@ -174,6 +185,19 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## System Architecture & Modules
+
+| Module | Description | Key Components |
+|--------|-------------|----------------|
+| **frontend** | React/Vite-based UI similar to TradingView & Bloomberg | `features/chart`, `features/dashboard`, `core/ChartEngine`, `ui/SharedComponents` |
+| **phase1** | Python/FastAPI Backend Core | `services/api`, `services/ingestion`, `services/bar_engine`, `services/strategy` |
+| **phase1/services/ingestion** | Real-time market data ingestion | `FinnhubClient`, `AlpacaClient`, `StreamManager` |
+| **phase1/services/bar_engine** | Aggregates ticks into OHLCV bars | `BarAggregator`, `TimeframeManager`, `ohlcv_buffer` |
+| **phase1/services/strategy** | System for running trading algorithms | `StrategyEngine`, `VectorBT` integration, `SignalGenerator` |
+| **n8n** | Workflow automation for Ops & Alerts | `workflows/alert_pipeline.json`, `docker-compose.yml` |
+| **browser_extension** | Browser automation helpers | `manifest.json`, `content_scripts/scraper.js` |
+| **cboe_pipeline** | Specialized Options Data Pipeline | `src/pipeline.py`, `analysis/volatility.py` |
+
 ---
 
 ## 🚀 Quick Start
@@ -309,27 +333,243 @@ npm run test:e2e       # End-to-end tests
 
 ```
 Tradingview recreation/
-├── frontend/          # React + TypeScript frontend
-│   ├── src/
-│   │   ├── features/  # Feature modules (chart, dashboard, strategy, etc.)
-│   │   ├── core/      # Core engine (ChartEngine, Scales)
-│   │   ├── data/      # API clients (REST, WebSocket)
-│   │   └── ui/        # Reusable components
-│   └── tests/         # Test suites
-│
-├── phase1/            # FastAPI backend
-│   ├── services/      # Service modules
-│   │   ├── api/       # REST API endpoints
-│   │   ├── ingestion/ # Data ingestion service
-│   │   ├── bar_engine/# OHLCV aggregation
-│   │   ├── strategy/  # Strategy execution engine
-│   │   └── portfolio/ # Portfolio management
-│   └── tests/         # Backend tests
-│
-├── Tradingview/       # Additional trading modules
-├── strategies/        # Strategy definitions
-└── docs/              # Documentation
-```
+```sh
+└── /
+    ├── .github
+    │   ├── prompts
+    │   └── workflows
+    ├── AUTOPILOT_EXPLANATION.md
+    ├── CURRENT_STATE.md
+    ├── IMPLEMENTATION_STATUS.md
+    ├── MASTER_PLAN.md
+    ├── Makefile
+    ├── PROJECT_REPORT.md
+    ├── QUICK_REFERENCE.md
+    ├── README.html
+    ├── README.md
+    ├── README_FACTS.md
+    ├── README_Generator_Colab.ipynb
+    ├── README_NEW.html
+    ├── README_NEW.md
+    ├── ROBUSTNESS_IMPROVEMENTS.md
+    ├── RUNBOOK.md
+    ├── Readme ai.code-workspace
+    ├── TEST_STATUS_SUMMARY.md
+    ├── Tradingview
+    │   ├── .pytest_cache
+    │   └── keys.env
+    ├── USAGE_GUIDE.md
+    ├── artifacts
+    │   ├── backend_status.log
+    │   ├── dist
+    │   ├── phase1
+    │   ├── phase4
+    │   ├── release
+    │   └── verification
+    ├── backend.log
+    ├── browser_extension
+    │   ├── manifest.json
+    │   ├── popup.html
+    │   └── popup.js
+    ├── cboe_pipeline
+    │   ├── README.md
+    │   ├── analysis
+    │   ├── audit_data.py
+    │   ├── check_progress.py
+    │   ├── config.yaml
+    │   ├── data
+    │   ├── main.py
+    │   ├── pipeline.log
+    │   ├── requirements.txt
+    │   └── src
+    ├── colab_readme_generator.py
+    ├── current_dashboard.png
+    ├── data
+    │   └── equity
+    ├── debug_browser_ws.js
+    ├── debug_db.py
+    ├── diagnose_browser.js
+    ├── docker-compose.unified.yml
+    ├── docs
+    │   ├── ACCEPTANCE_CHECKLIST.md
+    │   ├── LEAN_LOCAL_RUNBOOK_WINDOWS.md
+    │   ├── QC_ACCEPTANCE_CHECKLIST.md
+    │   ├── QC_ADAPTER_PROOF_REPORT.md
+    │   ├── QC_BRAIN_CONTRACT.md
+    │   ├── QC_CLOUD_RUNBOOK.md
+    │   ├── QC_PATTERN_A_PORT.md
+    │   ├── QC_REAL_RUN_SUMMARY.md
+    │   ├── RUNBOOK.md
+    │   ├── V1_SPEC.md
+    │   ├── api_contracts.md
+    │   ├── build_plan.md
+    │   ├── delivery_summary.md
+    │   ├── final_report.md
+    │   ├── implementation_plan.md
+    │   ├── merge_map.md
+    │   ├── side_project_review.md
+    │   ├── smoke_snapshot.png
+    │   ├── smoke_snapshot_pytest.png
+    │   └── target_architecture.md
+    ├── frontend
+    │   ├── .env.development
+    │   ├── .gitignore
+    │   ├── .pytest_cache
+    │   ├── README.md
+    │   ├── artifacts
+    │   ├── backend_status.log
+    │   ├── dist
+    │   ├── eslint.config.js
+    │   ├── frontend
+    │   ├── frontend.log
+    │   ├── frontend_status.log
+    │   ├── index.html
+    │   ├── node_modules
+    │   ├── nohup.out
+    │   ├── package-lock.json
+    │   ├── package.json
+    │   ├── playwright-report
+    │   ├── playwright.config.ts
+    │   ├── playwright.video.config.ts
+    │   ├── postcss.config.js
+    │   ├── preview.log
+    │   ├── public
+    │   ├── screenshots
+    │   ├── scripts
+    │   ├── src
+    │   ├── tailwind.config.js
+    │   ├── test-results
+    │   ├── test_ws.py
+    │   ├── tests
+    │   ├── tsconfig.app.json
+    │   ├── tsconfig.json
+    │   ├── tsconfig.node.json
+    │   ├── verify_dashboard_prices.cjs
+    │   ├── verify_gate0.cjs
+    │   ├── verify_gate2.cjs
+    │   ├── vite.config.ts
+    │   ├── vite.out
+    │   └── vitest.config.ts
+    ├── frontend.log
+    ├── full_implementation_plan.md
+    ├── full_implementation_plan.md:Zone.Identifier
+    ├── generate_readme_html.py
+    ├── improvement_guide.md
+    ├── inspect_alpaca.py
+    ├── inspect_leg.py
+    ├── keys.env
+    ├── keys.env.example
+    ├── lean.json
+    ├── logs
+    │   ├── backend.log
+    │   ├── frontend.log
+    │   └── n8n_docker.log
+    ├── monitor.log
+    ├── monitor_trades.py
+    ├── n8n
+    │   ├── README.md
+    │   ├── docker-compose.yml
+    │   └── workflows
+    ├── n8n_workflow_validation_report.md
+    ├── node_modules
+    │   ├── .bin
+    │   ├── .package-lock.json
+    │   ├── @playwright
+    │   ├── playwright
+    │   └── playwright-core
+    ├── package-lock.json
+    ├── package.json
+    ├── phase1
+    │   ├── .dockerignore
+    │   ├── .pytest_cache
+    │   ├── =15.0.0
+    │   ├── =2024.1
+    │   ├── DOCUMENTATION.md
+    │   ├── Dockerfile
+    │   ├── Makefile
+    │   ├── README.md
+    │   ├── SYSTEM_AUDIT.md
+    │   ├── artifacts
+    │   ├── autopilot_brain
+    │   ├── autopilot_config.json
+    │   ├── backend.log
+    │   ├── check_creds.py
+    │   ├── data
+    │   ├── debug_db.py
+    │   ├── docker-compose.yml
+    │   ├── docs
+    │   ├── fixtures
+    │   ├── keys.env
+    │   ├── keys.env.example
+    │   ├── n8n
+    │   ├── nohup.out
+    │   ├── phase1.db
+    │   ├── pytest.ini
+    │   ├── requirements.txt
+    │   ├── scripts
+    │   ├── server.log
+    │   ├── services
+    │   ├── tests
+    │   ├── trade_ledger.json
+    │   ├── uvicorn.out
+    │   └── venv
+    ├── phase1.db
+    ├── proxy.log
+    ├── qc
+    │   ├── AutopilotQC_v1
+    │   └── Library
+    ├── quick_ws_test.py
+    ├── readme-config.toml
+    ├── run_all.sh
+    ├── sanity.log
+    ├── scripts
+    │   ├── backtest.py
+    │   ├── live_run.py
+    │   └── sync_brain.py
+    ├── smoke.log
+    ├── smoke_retry.log
+    ├── strategies
+    │   ├── rsi_breakout.py
+    │   ├── sma_crossover.py
+    │   └── vwap_reversion.py
+    ├── test_backend.py
+    ├── test_n8n_from_container.sh
+    ├── test_n8n_workflow.py
+    ├── test_snapshot.js
+    ├── test_websocket.py
+    ├── tests
+    │   ├── __pycache__
+    │   ├── brain
+    │   ├── full_month_backtest.py
+    │   ├── integration
+    │   ├── qc_harness.py
+    │   ├── test_ui_smoke.py
+    │   ├── ui_smoke_test.py
+    │   └── unit
+    ├── tools
+    │   └── generate_lean_data.py
+    ├── verify_extension.js
+    ├── vwap_paper
+    │   ├── backend
+    │   ├── config
+    │   ├── frontend
+    │   └── scripts
+    ├── vwap_trading_system
+    │   ├── .pytest_cache
+    │   ├── README.md
+    │   ├── backend
+    │   ├── backend.log
+    │   ├── config
+    │   ├── data
+    │   ├── frontend
+    │   ├── playwright.config.ts
+    │   ├── pytest.ini
+    │   ├── requirements.txt
+    │   ├── run_tests.sh
+    │   ├── start.sh
+    │   ├── start_demo.sh
+    │   └── tests
+    ```
 
 ### Key Technologies
 

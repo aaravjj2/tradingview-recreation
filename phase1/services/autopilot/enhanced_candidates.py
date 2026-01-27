@@ -231,6 +231,10 @@ class EnhancedCandidateGenerator:
         )
         
         # Step 7: Get strategy recommendations
+        # V1 MODE FIX: Lower threshold temporarily to include V1 strategies
+        original_min = self.strategy_engine.MIN_STRATEGY_SCORE
+        self.strategy_engine.MIN_STRATEGY_SCORE = 0  # Get all scores
+        
         strategy_recs = self.strategy_engine.select_strategies(
             trade_score=trade_score,
             iv_rank=features.iv_rank,
@@ -243,15 +247,78 @@ class EnhancedCandidateGenerator:
             exclude_strategies=[StrategyType.NO_TRADE],
         )
         
+        self.strategy_engine.MIN_STRATEGY_SCORE = original_min  # Restore
+        
         if not strategy_recs:
             logger.info(f"[{symbol}] No suitable strategies found")
             return []
         
+        # V1 MODE: Filter to only V1-compatible strategies
+        from .config import V1_TEMPLATES
+        v1_strategy_types = {StrategyType.LONG_CALL, StrategyType.LONG_PUT}
+        v1_recs = [r for r in strategy_recs if r.strategy in v1_strategy_types]
+        
+        if not v1_recs:
+            logger.warning(f"[{symbol}] No V1-compatible strategies (LONG_CALL/LONG_PUT) available")
+            return []
+        
+        # =========================================================================
+        # CRITICAL FIX: ALIGN STRATEGY WITH TREND DIRECTION
+        # =========================================================================
+        # For high win rate, we MUST trade WITH the trend:
+        # - BEARISH trend -> LONG PUT only (profit when stock falls)
+        # - BULLISH trend -> LONG CALL only (profit when stock rises)
+        # - NEUTRAL trend -> Skip (no edge, theta decay will kill us)
+        # =========================================================================
+        
+        from .features import TrendDirection
+        
+        trend_direction = features.trend
+        trend_strength = features.trend_strength
+        
+        logger.info(f"[{symbol}] Trend: {trend_direction.value}, Strength: {trend_strength:.2f}")
+        
+        # =========================================================================
+        # HIGH WIN RATE: Require STRONG trend (40%+) for high-conviction trades
+        # =========================================================================
+        # Weak trends (30-40%) often reverse - wait for stronger signals
+        # This means fewer trades but much higher win rate
+        MIN_TREND_STRENGTH = 0.40  # Increased from 0.30 to 0.40
+        
+        if trend_strength < MIN_TREND_STRENGTH:
+            logger.info(f"[{symbol}] SKIP: Trend too weak ({trend_strength:.2f} < {MIN_TREND_STRENGTH}) - waiting for stronger signal")
+            return []
+        
+        # Filter strategies based on trend direction
+        if trend_direction == TrendDirection.BEARISH:
+            # BEARISH = buy PUTS (profit when stock goes DOWN)
+            aligned_recs = [r for r in v1_recs if r.strategy == StrategyType.LONG_PUT]
+            logger.info(f"[{symbol}] STRONG BEARISH trend ({trend_strength:.2f}) -> selecting LONG_PUT strategies")
+        elif trend_direction == TrendDirection.BULLISH:
+            # BULLISH = buy CALLS (profit when stock goes UP)
+            aligned_recs = [r for r in v1_recs if r.strategy == StrategyType.LONG_CALL]
+            logger.info(f"[{symbol}] STRONG BULLISH trend ({trend_strength:.2f}) -> selecting LONG_CALL strategies")
+        else:
+            # NEUTRAL = no edge, skip
+            logger.info(f"[{symbol}] SKIP: NEUTRAL trend - no directional edge")
+            return []
+        
+        if not aligned_recs:
+            logger.warning(f"[{symbol}] No trend-aligned V1 strategies available")
+            return []
+        
+        # Use trend-aligned strategies with relaxed score threshold
+        V1_MIN_SCORE = 10  # Much lower threshold for V1 single-leg strategies
+        top_recs = [r for r in aligned_recs if r.score >= V1_MIN_SCORE][:3]
+        
+        if not top_recs:
+            logger.info(f"[{symbol}] V1 strategies scored too low: {[(r.strategy.value, r.score) for r in v1_recs]}")
+            return []
+        
         # Log top recommendations
-        top_recs = strategy_recs[:3]
         for rec in top_recs:
             logger.info(
-                f"[{symbol}] Strategy: {rec.strategy.value}, "
+                f"[{symbol}] V1 Strategy: {rec.strategy.value}, "
                 f"Score: {rec.score:.1f}, Confidence: {rec.confidence:.2f}, "
                 f"DTE: {rec.optimal_dte}, Delta: {rec.target_delta}"
             )
@@ -259,8 +326,7 @@ class EnhancedCandidateGenerator:
         # Step 8: Generate candidates for top strategies
         candidates = []
         for rec in top_recs:
-            if rec.score < self.MIN_STRATEGY_SCORE:
-                continue
+            # V1 mode: already filtered by V1_MIN_SCORE above
             
             # Map StrategyType to StrategyTemplate
             template = self._map_strategy_to_template(rec.strategy)
@@ -333,35 +399,27 @@ class EnhancedCandidateGenerator:
         candidates = []
         
         # Generate based on template type
-        if template == StrategyTemplate.PUT_CREDIT_SPREAD:
-            candidates = self._generate_put_credit_spread(
+        # V1 COMPLIANCE: Only LONG_CALL and LONG_PUT are allowed
+        from .config import V1_TEMPLATES
+        if template not in V1_TEMPLATES:
+            logger.debug(f"V1 gate: skipping {template.value} - not V1 compliant")
+            return []
+        
+        if template == StrategyTemplate.LONG_CALL:
+            candidates = self._generate_long_call(
                 symbol, features, option_chain, price, expiry, actual_dte,
                 recommendation.target_delta
             )
         
-        elif template == StrategyTemplate.CALL_CREDIT_SPREAD:
-            candidates = self._generate_call_credit_spread(
+        elif template == StrategyTemplate.LONG_PUT:
+            candidates = self._generate_long_put(
                 symbol, features, option_chain, price, expiry, actual_dte,
                 recommendation.target_delta
             )
         
-        elif template == StrategyTemplate.IRON_CONDOR:
-            candidates = self._generate_iron_condor(
-                symbol, features, option_chain, price, expiry, actual_dte,
-                recommendation.target_delta
-            )
-        
-        elif template == StrategyTemplate.CALL_DEBIT_SPREAD:
-            candidates = self._generate_call_debit_spread(
-                symbol, features, option_chain, price, expiry, actual_dte,
-                recommendation.target_delta
-            )
-        
-        elif template == StrategyTemplate.PUT_DEBIT_SPREAD:
-            candidates = self._generate_put_debit_spread(
-                symbol, features, option_chain, price, expiry, actual_dte,
-                recommendation.target_delta
-            )
+        # V2+ templates blocked - these branches will never execute in V1
+        elif template == StrategyTemplate.PUT_CREDIT_SPREAD:
+            pass  # V2 strategy - not implemented in V1
         
         # Enhance each candidate with metadata
         for cand in candidates:
@@ -386,17 +444,36 @@ class EnhancedCandidateGenerator:
         return candidates
     
     def _map_strategy_to_template(self, strategy: StrategyType) -> Optional[StrategyTemplate]:
-        """Map StrategyType to StrategyTemplate."""
+        """Map StrategyType to StrategyTemplate.
+        
+        V1 COMPLIANCE: Only V1 templates (LONG_CALL, LONG_PUT) are allowed.
+        All other strategies return None and are rejected.
+        """
+        from .config import V1_TEMPLATES
+        
         mapping = {
-            StrategyType.PUT_CREDIT_SPREAD: StrategyTemplate.PUT_CREDIT_SPREAD,
-            StrategyType.CALL_CREDIT_SPREAD: StrategyTemplate.CALL_CREDIT_SPREAD,
-            StrategyType.IRON_CONDOR: StrategyTemplate.IRON_CONDOR,
-            StrategyType.CALL_DEBIT_SPREAD: StrategyTemplate.CALL_DEBIT_SPREAD,
-            StrategyType.PUT_DEBIT_SPREAD: StrategyTemplate.PUT_DEBIT_SPREAD,
+            # V1 ALLOWED
             StrategyType.LONG_CALL: StrategyTemplate.LONG_CALL,
             StrategyType.LONG_PUT: StrategyTemplate.LONG_PUT,
+            # V2+ BLOCKED - return None to reject
+            StrategyType.PUT_CREDIT_SPREAD: None,  # BLOCKED
+            StrategyType.CALL_CREDIT_SPREAD: None,  # BLOCKED
+            StrategyType.IRON_CONDOR: None,  # BLOCKED
+            StrategyType.CALL_DEBIT_SPREAD: None,  # BLOCKED for now (Phase 1.5)
+            StrategyType.PUT_DEBIT_SPREAD: None,  # BLOCKED for now (Phase 1.5)
         }
-        return mapping.get(strategy)
+        
+        template = mapping.get(strategy)
+        
+        # Extra V1 guard: verify template is in V1_TEMPLATES
+        if template is not None and template not in V1_TEMPLATES:
+            logger.warning(f"V1 gate: rejecting {template.value} - not in V1_TEMPLATES")
+            return None
+            
+        if template is None:
+            logger.debug(f"V1 gate: no template mapping for {strategy.value}")
+        
+        return template
     
     def _find_optimal_expiry(
         self,
@@ -925,6 +1002,211 @@ class EnhancedCandidateGenerator:
             break
         
         return candidates
+    
+    def _generate_long_call(
+        self,
+        symbol: str,
+        features: SymbolFeatures,
+        chain: Dict[str, Any],
+        price: float,
+        expiry: date,
+        dte: int,
+        target_delta: float,
+    ) -> List[TradeCandidate]:
+        """Generate long call candidates for bullish directional plays (V1 single-leg).
+        
+        HIGH WIN RATE STRATEGY:
+        - Only buy calls when trend is BULLISH (enforced in caller)
+        - Prefer slightly OTM (delta 0.30-0.45) for better risk/reward
+        - Cheaper premium = smaller loss if wrong
+        - Require minimum bid for liquidity
+        - Premium must be within risk limits
+        """
+        from .config import get_autopilot_config
+        config = get_autopilot_config()
+        max_premium = config.paper_equity * config.risk_limits.max_risk_per_trade_pct / 100  # Max premium per contract
+        
+        candidates = []
+        
+        exp_str = expiry.strftime("%Y-%m-%d")
+        chains = chain.get("chains", {}).get(exp_str, {})
+        calls = chains.get("calls", [])
+        
+        if not calls:
+            return candidates
+        
+        # OTM-focused delta range for directional bets (0.25-0.45)
+        # Lower delta = OTM = cheaper premium = better risk/reward if trend continues
+        delta_min, delta_max = 0.25, 0.50
+        
+        for call in calls:
+            delta = abs(call.get("delta", 0))
+            bid = call.get("bid", 0)
+            ask = call.get("ask", 0)
+            strike = call.get("strike", 0)
+            
+            # Delta filter
+            if not (delta_min <= delta <= delta_max):
+                continue
+            
+            # Liquidity filter - minimum bid
+            if bid < 0.05:
+                continue
+            
+            # Spread filter - max 20%
+            mid = (bid + ask) / 2 if ask > 0 else bid
+            if mid > 0:
+                spread_pct = (ask - bid) / mid
+                if spread_pct > 0.20:
+                    continue
+            
+            # Premium = cost to enter (max loss for long option)
+            premium = ask
+            max_loss = premium * 100  # Per contract
+            
+            # V1 BUDGET FILTER: Skip if premium exceeds max risk per trade
+            if premium > max_premium:
+                logger.debug(f"[{symbol}] Skipping ${strike} call: premium ${premium:.2f} > max ${max_premium:.2f}")
+                continue
+            max_profit = float('inf')  # Uncapped for long call
+            
+            # Conservative POP for ATM-ish
+            pop = 0.40
+            
+            self._candidate_counter += 1
+            candidate = TradeCandidate(
+                id=f"enhanced-{symbol}-lc-{self._candidate_counter}",
+                symbol=symbol,
+                template=StrategyTemplate.LONG_CALL,
+                legs=[
+                    OptionLeg(
+                        option_type="call",
+                        strike=strike,
+                        expiry=expiry,
+                        side="buy",
+                        quantity=1,
+                        premium=ask,
+                        delta=delta,
+                    ),
+                ],
+                underlying_price=price,
+                max_loss=max_loss,
+                max_profit=max_profit,
+                pop=pop,
+                dte=dte,
+                iv_rank=features.iv_rank,
+                liquidity_score=features.liquidity_score,
+                spread_percent=features.avg_spread_pct,
+                regime=features.vol_regime.value,
+                trend=features.trend.value,
+            )
+            candidates.append(candidate)
+        
+        # Return top candidates by delta (closer to 0.50 = better)
+        candidates.sort(key=lambda c: abs(c.legs[0].delta - 0.50))
+        return candidates[:3]
+    
+    def _generate_long_put(
+        self,
+        symbol: str,
+        features: SymbolFeatures,
+        chain: Dict[str, Any],
+        price: float,
+        expiry: date,
+        dte: int,
+        target_delta: float,
+    ) -> List[TradeCandidate]:
+        """Generate long put candidates for bearish directional plays (V1 single-leg).
+        
+        HIGH WIN RATE STRATEGY:
+        - Only buy puts when trend is BEARISH (enforced in caller)
+        - Prefer slightly OTM (delta 0.30-0.45) for better risk/reward
+        - Cheaper premium = smaller loss if wrong
+        - Require minimum bid for liquidity
+        - Premium must be within risk limits
+        """
+        from .config import get_autopilot_config
+        config = get_autopilot_config()
+        max_premium = config.paper_equity * config.risk_limits.max_risk_per_trade_pct / 100  # Max premium per contract
+        
+        candidates = []
+        
+        exp_str = expiry.strftime("%Y-%m-%d")
+        chains = chain.get("chains", {}).get(exp_str, {})
+        puts = chains.get("puts", [])
+        
+        if not puts:
+            return candidates
+        
+        # OTM-focused delta range for directional bets (0.25-0.50)
+        # Lower delta = OTM = cheaper premium = better risk/reward if trend continues
+        delta_min, delta_max = 0.25, 0.50
+        
+        for put in puts:
+            delta = abs(put.get("delta", 0))  # Put delta is negative, use abs
+            bid = put.get("bid", 0)
+            ask = put.get("ask", 0)
+            strike = put.get("strike", 0)
+            
+            # Delta filter
+            if not (delta_min <= delta <= delta_max):
+                continue
+            
+            # Liquidity filter
+            if bid < 0.05:
+                continue
+            
+            # Spread filter
+            mid = (bid + ask) / 2 if ask > 0 else bid
+            if mid > 0:
+                spread_pct = (ask - bid) / mid
+                if spread_pct > 0.20:
+                    continue
+            
+            premium = ask
+            max_loss = premium * 100  # Per contract
+            max_profit = (strike - premium) * 100  # Max if stock goes to 0 (theoretical)
+            
+            # V1 BUDGET FILTER: Skip if premium exceeds max risk per trade
+            if premium > max_premium:
+                logger.debug(f"[{symbol}] Skipping ${strike} put: premium ${premium:.2f} > max ${max_premium:.2f}")
+                continue
+            
+            # Conservative POP
+            pop = 0.40
+            
+            self._candidate_counter += 1
+            candidate = TradeCandidate(
+                id=f"enhanced-{symbol}-lp-{self._candidate_counter}",
+                symbol=symbol,
+                template=StrategyTemplate.LONG_PUT,
+                legs=[
+                    OptionLeg(
+                        option_type="put",
+                        strike=strike,
+                        expiry=expiry,
+                        side="buy",
+                        quantity=1,
+                        premium=ask,
+                        delta=-delta,  # Put delta is negative
+                    ),
+                ],
+                underlying_price=price,
+                max_loss=max_loss,
+                max_profit=max_profit,
+                pop=pop,
+                dte=dte,
+                iv_rank=features.iv_rank,
+                liquidity_score=features.liquidity_score,
+                spread_percent=features.avg_spread_pct,
+                regime=features.vol_regime.value,
+                trend=features.trend.value,
+            )
+            candidates.append(candidate)
+        
+        # Return top candidates by delta (closer to 0.50 = better)
+        candidates.sort(key=lambda c: abs(abs(c.legs[0].delta) - 0.50))
+        return candidates[:3]
     
     def _enhance_candidate_scores(
         self,

@@ -303,7 +303,8 @@ class SimpleRanker:
             features.get(f, 0) * w
             for f, w in self._weights.items()
         )
-        return score * 100
+        # Clamp to 0-100 range
+        return max(0, min(100, score * 100))
     
     def save(self, path: str):
         """Save model to file."""

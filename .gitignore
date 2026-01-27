@@ -60,3 +60,6 @@ logs/
 *.sqlite3
 *.db
 .envrc
+
+# Cboe Pipeline Data
+cboe_pipeline/data/

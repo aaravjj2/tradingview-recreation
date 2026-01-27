@@ -424,12 +424,24 @@ class AlpacaBrokerClient:
         """
         Submit an order.
         Supports passing a TradeCandidate object OR individual parameters (legacy).
+        
+        V1 COMPLIANCE: Market orders are banned. Only limit orders allowed.
         """
         if not self._api:
             return None
         
+        # V1 HARD GATE: Reject market orders
+        if order_type == "market":
+            logger.error("V1 COMPLIANCE VIOLATION: Market orders are banned. Use limit orders only.")
+            raise ValueError("V1 compliance: Market orders are not allowed. Use limit orders with a limit_price.")
+        
+        # V1 REQUIREMENT: limit_price must be provided for limit orders
+        if order_type == "limit" and limit_price is None:
+            logger.error("V1 COMPLIANCE VIOLATION: Limit orders require a limit_price.")
+            raise ValueError("V1 compliance: Limit orders require a limit_price parameter.")
+        
         try:
-            from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, OrderRequest
+            from alpaca.trading.requests import LimitOrderRequest, OrderRequest
             from alpaca.trading.enums import OrderSide, TimeInForce, OrderType as AlpacaOrderType
             
             # Handle TradeCandidate object
@@ -454,23 +466,16 @@ class AlpacaBrokerClient:
             side_enum = OrderSide.BUY if side == "buy" else OrderSide.SELL
             tif = TimeInForce.DAY if time_in_force == "day" else TimeInForce.GTC
             
-            if order_type == "market":
-                request = MarketOrderRequest(
-                    symbol=symbol,
-                    qty=qty,
-                    side=side_enum,
-                    time_in_force=tif,
-                    client_order_id=client_order_id,
-                )
-            else:
-                request = LimitOrderRequest(
-                    symbol=symbol,
-                    qty=qty,
-                    side=side_enum,
-                    time_in_force=tif,
-                    limit_price=limit_price,
-                    client_order_id=client_order_id,
-                )
+            # V1 COMPLIANCE: Only limit orders allowed
+            # Market orders branch removed - will raise exception above
+            request = LimitOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=side_enum,
+                time_in_force=tif,
+                limit_price=limit_price,
+                client_order_id=client_order_id,
+            )
             
             result = self._api.submit_order(request)
             

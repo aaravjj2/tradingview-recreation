@@ -1,17 +1,43 @@
 import os
 import types
 import sys
+import pytest
 
 
-def test_ingestion_auto_switch(monkeypatch):
-    # Prepare fake services.api submodules to avoid circular imports during import
+@pytest.fixture
+def fake_api_modules():
+    """Create fake api modules and restore them after the test."""
+    # Save original modules
+    original_api = sys.modules.get('services.api')
+    original_api_main = sys.modules.get('services.api.main')
+    original_api_ws = sys.modules.get('services.api.websocket')
+    
+    # Create fakes
     sys.modules['services.api'] = types.ModuleType('services.api')
     sys.modules['services.api.main'] = types.ModuleType('services.api.main')
     fake_ws = types.ModuleType('services.api.websocket')
     fake_ws.on_bar_update = lambda *a, **k: None
     fake_ws.on_bar_confirmed = lambda *a, **k: None
     sys.modules['services.api.websocket'] = fake_ws
+    
+    yield
+    
+    # Restore original modules
+    if original_api is not None:
+        sys.modules['services.api'] = original_api
+    else:
+        sys.modules.pop('services.api', None)
+    if original_api_main is not None:
+        sys.modules['services.api.main'] = original_api_main
+    else:
+        sys.modules.pop('services.api.main', None)
+    if original_api_ws is not None:
+        sys.modules['services.api.websocket'] = original_api_ws
+    else:
+        sys.modules.pop('services.api.websocket', None)
 
+
+def test_ingestion_auto_switch(monkeypatch, fake_api_modules):
     # Ensure environment clears any existing keys
     for v in ('ALPACA3_KEY','ALPACA3_SECRET','APCA_API_KEY_ID','APCA_API_SECRET_KEY'):
         monkeypatch.delenv(v, raising=False)

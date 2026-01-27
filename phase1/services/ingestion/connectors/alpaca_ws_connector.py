@@ -253,9 +253,17 @@ class AlpacaWSConnector(BaseConnector):
 
     async def _safe_send(self, payload: str) -> bool:
         """Safely send a payload over the websocket; return True on success."""
-        if not self._ws or not getattr(self._ws, "open", False) or getattr(self._ws, "closed", False):
-            self.logger.warning("alpaca_ws_send_skipped", reason="not_connected")
-            return False
+        # Check connection state properly - websockets library uses .state or check .closed
+        try:
+            from websockets.protocol import State
+            if not self._ws or self._ws.state != State.OPEN:
+                self.logger.debug("alpaca_ws_send_skipped", reason="not_connected")
+                return False
+        except (AttributeError, ImportError):
+            # Fallback check
+            if not self._ws or getattr(self._ws, "closed", True):
+                self.logger.debug("alpaca_ws_send_skipped", reason="not_connected")
+                return False
         try:
             async with self._send_lock:
                 await self._ws.send(payload)

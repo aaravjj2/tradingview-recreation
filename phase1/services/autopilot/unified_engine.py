@@ -576,6 +576,13 @@ class UnifiedAutopilotEngine:
         self._news_provider = None  # Finnhub/yfinance provider
         self._position_store = None  # Internal position metadata store
         
+        # Anti-thrash state (V1 Phase 1)
+        self._ticker_last_stopout: Dict[str, datetime] = {}  # ticker -> last stop-out time
+        self._consecutive_stopouts: int = 0  # count of consecutive stop-outs
+        self._circuit_breaker_until: Optional[datetime] = None  # circuit breaker expiry
+        self._daily_loss_pct: float = 0.0  # track daily loss %
+        self._day_start_equity: Optional[float] = None  # equity at day start
+        
         # Verify paper-only on init
         self._verify_paper_only()
         
@@ -866,16 +873,30 @@ class UnifiedAutopilotEngine:
             
             # Phase 4: Candidate Generation (if budget available)
             self._set_phase(CyclePhase.CANDIDATE_GENERATION)
+            
+            # V1 REGIME GATE: CHAOS = no entries
+            current_regime = artifact.market_context.regime.lower() if artifact.market_context.regime else "unknown"
+            regime_allows_entries = current_regime != "chaos"
+            
+            if not regime_allows_entries:
+                think.reject("New trades", f"V1 REGIME GATE: {current_regime.upper()} regime blocks all entries")
+                artifact.add_no_action_reason(f"V1 Regime Gate: {current_regime.upper()} blocks entries")
+                artifact.gates_triggered.append(ValidationGate.REGIME_MISMATCH)
+                logger.warning(f"⚠️ V1 REGIME GATE: CHAOS detected - blocking all new entries")
+            
             think.evaluate("Risk budget", "checking if we can open new positions...")
             
             # Get daily trade count for limit check
             daily_trades = await self._get_daily_trade_count()
-            risk_budget_ok = self._check_risk_budget(positions, daily_trades)
+            risk_budget_ok = self._check_risk_budget(positions, daily_trades) and regime_allows_entries
             
             if not risk_budget_ok:
-                think.reject("New trades", "risk budget exhausted")
-                artifact.add_no_action_reason("Risk budget exhausted")
-                artifact.gates_triggered.append(ValidationGate.RISK_BUDGET)
+                if not regime_allows_entries:
+                    pass  # Already logged above
+                else:
+                    think.reject("New trades", "risk budget exhausted")
+                    artifact.add_no_action_reason("Risk budget exhausted")
+                    artifact.gates_triggered.append(ValidationGate.RISK_BUDGET)
             else:
                 think.decide("Proceed with candidate generation", "risk budget available")
             
@@ -1243,12 +1264,14 @@ class UnifiedAutopilotEngine:
             option_type = manager._parse_option_type(symbol) if hasattr(manager, '_parse_option_type') else None
             dte = manager._calc_dte(expiration) if hasattr(manager, '_calc_dte') and expiration else None
             
-            # Default exit rules if no metadata (10% hard stop, trailing at 10%+ profit)
+            # Default exit rules - HIGH WIN RATE settings
+            # Tighter stops + faster profit taking = more consistent wins
             exit_rules = meta.exit_rules if meta else BrokerExitRule(
-                stop_loss_pct=10.0,
-                profit_target_pct=50.0,
+                stop_loss_pct=8.0,        # 8% hard stop (tighter risk control)
+                profit_target_pct=25.0,   # 25% profit target (take wins faster)
                 time_stop_dte=1,
                 trailing_step=5.0,
+                break_even_trigger_pct=5.0,  # Move to break-even at 5% profit
             )
             
             # Track highest profit
@@ -1345,7 +1368,7 @@ class UnifiedAutopilotEngine:
         return actions
     
     async def _get_daily_trade_count(self) -> int:
-        """Get number of orders placed today via Alpaca."""
+        """Get number of AUTOPILOT orders placed today (not manual orders)."""
         from .alpaca_client import get_alpaca_client
         from datetime import date
         
@@ -1353,7 +1376,15 @@ class UnifiedAutopilotEngine:
             client = get_alpaca_client()
             orders = await client.list_orders(status="all", limit=500)
             today = date.today()
-            today_orders = [o for o in orders if hasattr(o, 'created_at') and o.created_at.date() == today]
+            # Only count orders from autopilot (have UAC or AP prefix in client_order_id)
+            today_orders = [
+                o for o in orders 
+                if hasattr(o, 'created_at') and o.created_at.date() == today
+                and hasattr(o, 'client_order_id') 
+                and (o.client_order_id.startswith('UAC') or o.client_order_id.startswith('AP'))
+            ]
+            all_today = [o for o in orders if hasattr(o, 'created_at') and o.created_at.date() == today]
+            logger.debug(f"Daily trades: {len(today_orders)} autopilot / {len(all_today)} total")
             return len(today_orders)
         except Exception as e:
             logger.warning(f"Failed to get daily trade count: {e}")
@@ -1363,15 +1394,20 @@ class UnifiedAutopilotEngine:
         """
         Check if risk budget allows new entries.
         
-        Rules:
+        V1 COMPLIANCE:
+        - 2% max risk per trade
+        - 50% max buying power utilization
         - Max 5 positions total
         - Max 10 trades per day
-        - Max $1000 total capital at risk
         - Max 1 position per underlying
         """
         from .config import get_autopilot_config
 
         config = get_autopilot_config()
+        equity = config.paper_equity
+        
+        # V1: Compute percentage-based limits
+        risk_limits = config.risk_limits.validate_for_equity(equity)
         
         # Count ALL option positions (not just managed), excluding expired
         option_positions = [p for p in positions if p.asset_class == "us_option"]
@@ -1382,29 +1418,32 @@ class UnifiedAutopilotEngine:
         # Count unique underlyings
         underlyings = set(p.underlying or p.symbol for p in active_positions)
         
-        print(f"RISK CHECK: {total_count} active positions ({len(option_positions) - total_count} expired), {len(underlyings)} underlyings, {daily_trades} trades today")
+        # Calculate total market value (buying power used)
+        total_value = sum(abs(p.market_value) for p in active_positions)
+        buying_power_pct = total_value / equity if equity > 0 else 1.0
+        
+        print(f"V1 RISK CHECK: {total_count} active positions, ${total_value:.2f} ({buying_power_pct*100:.1f}% buying power), {daily_trades} trades today")
         
         # Check daily trade limit FIRST
-        max_daily = getattr(config.risk_limits, 'max_daily_trades', 10)
+        max_daily = getattr(risk_limits, 'max_daily_trades', 10)
         if daily_trades >= max_daily:
-            print(f"RISK CHECK: BLOCKED - daily trade limit reached ({daily_trades}/{max_daily})")
-            logger.info(f"Risk budget: daily trade limit reached ({daily_trades}/{max_daily})")
+            print(f"V1 RISK CHECK: BLOCKED - daily trade limit reached ({daily_trades}/{max_daily})")
+            logger.info(f"V1 Risk: daily trade limit reached ({daily_trades}/{max_daily})")
             return False
         
-        # Check max positions (STRICT - count individual legs)
-        if total_count >= config.risk_limits.max_open_positions:
-            print(f"RISK CHECK: BLOCKED - max positions reached ({total_count}/{config.risk_limits.max_open_positions})")
-            logger.info(f"Risk budget: max positions reached ({total_count}/{config.risk_limits.max_open_positions})")
+        # Check max positions
+        if total_count >= risk_limits.max_open_positions:
+            print(f"V1 RISK CHECK: BLOCKED - max positions reached ({total_count}/{risk_limits.max_open_positions})")
+            logger.info(f"V1 Risk: max positions reached ({total_count}/{risk_limits.max_open_positions})")
             return False
         
-        # Check total market value against budget (only active positions)
-        total_value = sum(abs(p.market_value) for p in active_positions)
-        if total_value >= config.paper_equity:
-            print(f"RISK CHECK: BLOCKED - budget exhausted (${total_value:.2f} >= ${config.paper_equity:.2f})")
-            logger.info(f"Risk budget: budget exhausted (${total_value:.2f} >= ${config.paper_equity:.2f})")
+        # V1: Check buying power utilization (50% cap)
+        if buying_power_pct >= risk_limits.max_buying_power_pct:
+            print(f"V1 RISK CHECK: BLOCKED - buying power cap reached ({buying_power_pct*100:.1f}% >= {risk_limits.max_buying_power_pct*100:.0f}%)")
+            logger.info(f"V1 Risk: buying power cap reached ({buying_power_pct*100:.1f}% >= {risk_limits.max_buying_power_pct*100:.0f}%)")
             return False
         
-        print(f"RISK CHECK: OK - {total_count}/{config.risk_limits.max_open_positions} active positions, ${total_value:.2f}/${config.paper_equity:.2f} budget, {daily_trades}/{max_daily} trades")
+        print(f"V1 RISK CHECK: OK - {total_count}/{risk_limits.max_open_positions} positions, {buying_power_pct*100:.1f}%/{risk_limits.max_buying_power_pct*100:.0f}% buying power, {daily_trades}/{max_daily} trades")
         return True
     
     async def _generate_candidates(
@@ -1458,6 +1497,12 @@ class UnifiedAutopilotEngine:
             if config.focus_symbol:
                 symbols = [s for s in symbols if s.symbol == config.focus_symbol]
 
+            # V1 SYMBOL ENFORCEMENT: Filter to only allowed symbols
+            original_count = len(symbols)
+            symbols = [s for s in symbols if config.is_symbol_allowed(s.symbol)]
+            if len(symbols) < original_count:
+                logger.info(f"V1 Symbol filter: {original_count} -> {len(symbols)} symbols (removed blocked/invalid)")
+
             scored = []
             provider = get_data_provider()
             
@@ -1486,6 +1531,11 @@ class UnifiedAutopilotEngine:
             
             # Generate candidates for each symbol
             for symbol, features, _score in top:
+                # Double-check symbol is allowed (defense in depth)
+                if not config.is_symbol_allowed(symbol):
+                    logger.warning(f"V1 GATE: Skipping {symbol} - not in allowed list")
+                    continue
+                    
                 try:
                     if use_enhanced:
                         # Get price history for technical analysis
@@ -1551,19 +1601,160 @@ class UnifiedAutopilotEngine:
         return candidates
     
     def _select_candidates(self, candidates: List[Dict]) -> List[Dict]:
-        """Select top candidates (deterministic ranking)."""
-        from .config import get_autopilot_config
+        """
+        Select top candidates using V1 priority queue.
+        
+        V1 Priority Queue Rules:
+        1. Filter by regime: direction-aligned templates only
+        2. Sort by composite score (deterministic)
+        3. Limit to max per cycle
+        4. No ties - deterministic ordering
+        """
+        from .config import get_autopilot_config, V1_TEMPLATES, StrategyTemplate
 
         config = get_autopilot_config()
         
-        # Sort by score descending
-        sorted_candidates = sorted(candidates, key=lambda c: c.get("score", c.get("adjusted_score", 0)), reverse=True)
+        # V1: Get current regime/direction for filtering
+        # (BULLISH → LONG_CALL preferred, BEARISH → LONG_PUT preferred)
+        v1_filtered = []
+        for c in candidates:
+            template_str = c.get("template", "")
+            try:
+                template = StrategyTemplate(template_str)
+            except ValueError:
+                continue
+            
+            # V1 hard filter: only V1 templates
+            if template not in V1_TEMPLATES:
+                logger.debug(f"V1 queue: Filtered out {template_str} (not V1)")
+                continue
+            
+            # Direction alignment filter (optional, for better selection)
+            trend = c.get("trend", "neutral").lower()
+            if template == StrategyTemplate.LONG_CALL and trend == "bearish":
+                c["direction_penalty"] = -10  # Penalize misaligned direction
+            elif template == StrategyTemplate.LONG_PUT and trend == "bullish":
+                c["direction_penalty"] = -10
+            else:
+                c["direction_penalty"] = 0
+            
+            v1_filtered.append(c)
+        
+        # Priority queue: sort by adjusted score + direction alignment
+        def priority_key(c):
+            base_score = c.get("score", c.get("adjusted_score", 0))
+            direction_adj = c.get("direction_penalty", 0)
+            # Tie-breaker: alphabetical symbol for determinism
+            return (base_score + direction_adj, c.get("symbol", ""))
+        
+        sorted_candidates = sorted(v1_filtered, key=priority_key, reverse=True)
         
         # Limit to max per cycle
         max_per_cycle = max(1, int(config.max_symbols_per_cycle))
         if config.focus_symbol:
             sorted_candidates = [c for c in sorted_candidates if c.get("symbol") == config.focus_symbol]
-        return sorted_candidates[:max_per_cycle]
+        
+        selected = sorted_candidates[:max_per_cycle]
+        
+        logger.info(f"V1 Priority Queue: {len(candidates)} → {len(v1_filtered)} V1 filtered → {len(selected)} selected")
+        
+        return selected
+    
+    # =========================================================================
+    # ANTI-THRASH CONTROLS (V1 Phase 1)
+    # =========================================================================
+    
+    def _check_anti_thrash_gates(
+        self, ticker: str
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Check anti-thrash gates for a ticker.
+        
+        Returns:
+            (allowed, reason) - allowed=True if trade permitted, reason if blocked
+        """
+        from .config import get_autopilot_config
+        config = get_autopilot_config()
+        anti_thrash = config.anti_thrash
+        now = datetime.now()
+        
+        # Gate 1: Circuit breaker (global)
+        if self._circuit_breaker_until and now < self._circuit_breaker_until:
+            remaining = (self._circuit_breaker_until - now).total_seconds()
+            return False, f"Circuit breaker active ({remaining:.0f}s remaining)"
+        
+        # Gate 2: Daily loss limit
+        if self._daily_loss_pct >= anti_thrash.daily_loss_limit_pct:
+            return False, f"Daily loss limit reached ({self._daily_loss_pct:.1%} >= {anti_thrash.daily_loss_limit_pct:.1%})"
+        
+        # Gate 3: Per-ticker cooldown after stop-out
+        if ticker in self._ticker_last_stopout:
+            last_stopout = self._ticker_last_stopout[ticker]
+            cooldown_end = last_stopout + timedelta(seconds=anti_thrash.ticker_cooldown_seconds)
+            if now < cooldown_end:
+                remaining = (cooldown_end - now).total_seconds()
+                return False, f"{ticker} on cooldown ({remaining:.0f}s remaining after stop-out)"
+        
+        return True, None
+    
+    def record_stopout(self, ticker: str, loss_pct: float) -> None:
+        """
+        Record a stop-out event for anti-thrash tracking.
+        
+        Args:
+            ticker: The ticker that stopped out
+            loss_pct: Loss percentage (e.g., 0.10 for 10% loss)
+        """
+        from .config import get_autopilot_config
+        config = get_autopilot_config()
+        anti_thrash = config.anti_thrash
+        now = datetime.now()
+        
+        # Track ticker cooldown
+        self._ticker_last_stopout[ticker] = now
+        logger.warning(f"🛑 STOP-OUT: {ticker} (-{loss_pct:.1%}) - cooldown for {anti_thrash.ticker_cooldown_seconds}s")
+        
+        # Increment consecutive stop-outs
+        self._consecutive_stopouts += 1
+        logger.warning(f"📊 Consecutive stop-outs: {self._consecutive_stopouts}/{anti_thrash.max_consecutive_stopouts}")
+        
+        # Check circuit breaker trigger
+        if self._consecutive_stopouts >= anti_thrash.max_consecutive_stopouts:
+            self._circuit_breaker_until = now + timedelta(seconds=anti_thrash.circuit_breaker_duration_seconds)
+            logger.critical(
+                f"⚡ CIRCUIT BREAKER ACTIVATED: {self._consecutive_stopouts} consecutive stop-outs. "
+                f"Trading paused until {self._circuit_breaker_until.isoformat()}"
+            )
+            # Reset counter after triggering circuit breaker
+            self._consecutive_stopouts = 0
+        
+        # Update daily loss tracking
+        self._daily_loss_pct += loss_pct
+        logger.info(f"📉 Daily loss: {self._daily_loss_pct:.1%} / {anti_thrash.daily_loss_limit_pct:.1%} limit")
+    
+    def record_profitable_exit(self) -> None:
+        """Record a profitable exit - resets consecutive stop-out counter."""
+        if self._consecutive_stopouts > 0:
+            logger.info(f"✅ Profitable exit - resetting consecutive stop-out counter (was {self._consecutive_stopouts})")
+            self._consecutive_stopouts = 0
+    
+    def reset_daily_counters(self, equity: float) -> None:
+        """Reset daily counters at start of trading day."""
+        self._daily_loss_pct = 0.0
+        self._day_start_equity = equity
+        self._consecutive_stopouts = 0
+        # Note: ticker cooldowns persist across days (by design)
+        # Clear expired ticker cooldowns
+        from .config import get_autopilot_config
+        config = get_autopilot_config()
+        now = datetime.now()
+        expired = [
+            t for t, ts in self._ticker_last_stopout.items()
+            if (now - ts).total_seconds() > config.anti_thrash.ticker_cooldown_seconds
+        ]
+        for t in expired:
+            del self._ticker_last_stopout[t]
+        logger.info(f"🌅 Daily counters reset. Equity: ${equity:.2f}. Cleared {len(expired)} expired cooldowns.")
     
     def _validate_candidate(
         self,
@@ -1579,9 +1770,29 @@ class UnifiedAutopilotEngine:
         errors = []
         
         symbol = candidate.get("symbol", "")
+        
+        # V1 ANTI-THRASH GATE (check first - fail fast)
+        anti_thrash_ok, anti_thrash_reason = self._check_anti_thrash_gates(symbol)
+        if not anti_thrash_ok:
+            gates.append(ValidationGate.RISK_BUDGET)  # Use RISK_BUDGET gate for anti-thrash
+            errors.append(f"Anti-thrash: {anti_thrash_reason}")
+            return False, gates, errors  # Fail fast
+        
         if config.focus_symbol and symbol != config.focus_symbol:
             gates.append(ValidationGate.SYMBOL_FILTER)
             errors.append(f"Focus symbol active ({config.focus_symbol}), rejecting {symbol}")
+        
+        # V1 PER-TRADE RISK CHECK (2% cap)
+        equity = config.paper_equity
+        max_risk_per_trade = equity * config.risk_limits.max_risk_per_trade_pct
+        candidate_risk = candidate.get("max_loss", 0) or candidate.get("premium", 0) * 100
+        
+        if candidate_risk > max_risk_per_trade:
+            gates.append(ValidationGate.RISK_BUDGET)
+            errors.append(
+                f"V1 per-trade risk exceeded: ${candidate_risk:.2f} > "
+                f"${max_risk_per_trade:.2f} ({config.risk_limits.max_risk_per_trade_pct*100:.0f}% of ${equity:.0f})"
+            )
         
         # Check max per underlying
         underlying_count = sum(1 for p in positions if (p.underlying or p.symbol) == symbol)
@@ -1595,6 +1806,7 @@ class UnifiedAutopilotEngine:
         if dte < constraints.min_dte or dte > constraints.max_dte:
             gates.append(ValidationGate.DTE_BOUNDS)
             errors.append(f"DTE {dte} outside bounds [{constraints.min_dte}, {constraints.max_dte}]")
+        
         
         # Check earnings blackout
         if hasattr(sentiment, 'is_blackout') and sentiment.is_blackout:
@@ -1653,6 +1865,114 @@ class UnifiedAutopilotEngine:
         )
         return rationale
     
+    # =========================================================================
+    # V1 EXECUTION LADDER - Limit Orders Only
+    # =========================================================================
+    
+    async def _execute_with_ladder(
+        self,
+        broker: Any,
+        trade_candidate: Any,
+        base_limit_price: float,
+        max_attempts: int = 3,
+        timeout_seconds: float = 5.0,
+    ) -> Tuple[Optional[Any], str]:
+        """
+        Execute trade with V1 execution ladder policy.
+        
+        Ladder steps:
+        1. Aggressive limit (mid price) - wait timeout_seconds
+        2. Mid price adjusted (mid + small spread) - wait timeout_seconds
+        3. Final attempt (near ask/far bid) - wait timeout_seconds
+        4. If still unfilled, abort
+        
+        Returns:
+            Tuple of (order result or None, status message)
+        """
+        import asyncio
+        
+        # V1 Ladder price adjustments (for long premium = buying)
+        # Step 1: Start at mid or slightly below
+        # Step 2: Move toward ask
+        # Step 3: Near ask (but still limit, never market)
+        LADDER_ADJUSTMENTS = [0.0, 0.02, 0.05]  # Percent above mid for buys
+        
+        for attempt, adjustment in enumerate(LADDER_ADJUSTMENTS):
+            adjusted_price = round(base_limit_price * (1 + adjustment), 2)
+            
+            logger.info(
+                f"Execution ladder attempt {attempt + 1}/{max_attempts}: "
+                f"limit_price=${adjusted_price:.2f} (base=${base_limit_price:.2f}, adj={adjustment*100:.1f}%)"
+            )
+            
+            try:
+                # Submit order with adjusted limit price
+                order = broker.submit_order(
+                    trade_candidate,
+                    order_type="limit",
+                    limit_price=adjusted_price,
+                )
+                
+                if not order:
+                    continue
+                
+                # Wait for fill (with timeout)
+                fill_timeout = timeout_seconds
+                elapsed = 0.0
+                check_interval = 0.5
+                
+                while elapsed < fill_timeout:
+                    await asyncio.sleep(check_interval)
+                    elapsed += check_interval
+                    
+                    # Check order status
+                    if hasattr(order, 'status'):
+                        status = order.status.value if hasattr(order.status, 'value') else order.status
+                        if status in ['filled', 'partial_fill']:
+                            logger.info(f"Execution ladder: FILLED at attempt {attempt + 1}")
+                            return order, f"filled_at_step_{attempt + 1}"
+                        elif status in ['rejected', 'canceled', 'expired']:
+                            logger.warning(f"Execution ladder: Order {status} at attempt {attempt + 1}")
+                            break
+                
+                # Not filled in time, cancel and try next step
+                if hasattr(broker, 'cancel_order') and hasattr(order, 'order_id'):
+                    try:
+                        await broker.cancel_order(order.order_id)
+                    except Exception:
+                        pass
+                        
+            except Exception as e:
+                logger.warning(f"Execution ladder attempt {attempt + 1} failed: {e}")
+                continue
+        
+        # All attempts exhausted
+        logger.warning("Execution ladder: All attempts exhausted, aborting trade")
+        return None, "ladder_exhausted"
+    
+    def _calculate_limit_price_for_candidate(self, candidate: Dict) -> Optional[float]:
+        """
+        Calculate appropriate limit price for a trade candidate.
+        
+        For long options (V1): use the ask price (or slightly below)
+        For credit spreads (V2+): use the net credit as limit
+        """
+        legs = candidate.get("legs", [])
+        template = candidate.get("template", "")
+        
+        # V1 templates (single-leg long premium)
+        if template in ["long_call", "long_put"]:
+            # For buys, limit price = what we're willing to pay (at or near ask)
+            if legs:
+                leg = legs[0] if isinstance(legs[0], dict) else legs[0].__dict__
+                ask = leg.get("premium", 0) or leg.get("ask", 0)
+                return round(ask, 2) if ask > 0 else None
+            return None
+        
+        # Credit spreads (V2+ - blocked in V1 but keeping for future)
+        credit = candidate.get("credit", 0)
+        return round(credit, 2) if credit > 0 else None
+
     async def _execute_trades(self, candidates: List[Dict], run_id: str) -> List[OrderRecord]:
         """Execute trades via Alpaca - REAL order submission."""
         from .alpaca_broker import AlpacaOptionsBroker
@@ -1716,13 +2036,18 @@ class UnifiedAutopilotEngine:
             client_order_id = self._generate_client_order_id(run_id, template, symbol)
             
             print(f"EXEC DEBUG [{idx}]: Creating order_record")
+            
+            # V1 COMPLIANCE: Use limit orders only with execution ladder
+            # Calculate limit price from candidate premium/credit
+            limit_price = credit if credit > 0 else None
+            
             order_record = OrderRecord(
                 client_order_id=client_order_id,
                 symbol=symbol,
                 side="sell",  # Credit spreads are sold
-                order_type="market",
+                order_type="limit",  # V1: LIMIT ONLY
                 qty=max(1, int(config.contracts_per_trade)),
-                limit_price=credit,
+                limit_price=limit_price,
                 submitted_at=datetime.now(),
             )
             

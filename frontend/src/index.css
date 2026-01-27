@@ -24,6 +24,11 @@
   --color-backtest: #06B6D4;
   --color-paper: #F59E0B;
 
+  /* Trade semantics */
+  --color-bullish: #089981;
+  --color-bearish: #F23645;
+  --bg-terminal: #131722;
+
   /* Spacing */
   --spacing-unit: 8px;
 

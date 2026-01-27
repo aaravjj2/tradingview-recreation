@@ -32,8 +32,8 @@ class ServerConfig:
 
 
 @dataclass
-class TestContext:
-    """Context passed to E2E tests."""
+class E2ETestContext:
+    """Context passed to E2E tests (renamed to avoid pytest collection)."""
     
     server_url: str
     ws_url: str
@@ -330,7 +330,7 @@ class E2ETestRunner:
         self,
         name: str,
         test_fn: Callable,
-        context: TestContext,
+        context: E2ETestContext,
     ) -> E2ETestResult:
         """Run a single test."""
         start = time.time()

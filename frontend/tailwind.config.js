@@ -27,6 +27,15 @@ export default {
                 down: '#F23645',
                 'down-hover': '#FF4757',
 
+                // Trade semantics (first-class aliases)
+                'trade-up': '#089981',
+                'trade-down': '#F23645',
+                bullish: '#089981',
+                bearish: '#F23645',
+
+                // Terminal background (deep charcoal)
+                terminal: '#131722',
+
                 // Semantic - Status
                 warn: '#F7931A',
                 'warn-bg': 'rgba(247, 147, 26, 0.1)',

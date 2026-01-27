@@ -6,6 +6,12 @@ Manages all settings for the paper-only AI options autopilot including:
 - Universe and strategy whitelists
 - Forecast influence settings
 - LLM enablement
+
+V1 CONTRACT (Non-negotiable):
+- Max open positions: 10
+- Max total exposure: $1,000
+- Per-position stop loss: 10%
+- Allowed templates: LONG_CALL, LONG_PUT only
 """
 
 from dataclasses import dataclass, field
@@ -17,6 +23,15 @@ import os
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# V1 CONTRACT CONSTANTS (Non-negotiable)
+# ============================================================================
+V1_MAX_OPEN_POSITIONS = 10          # Max 10 positions at a time
+V1_MAX_TOTAL_EXPOSURE_USD = 1000.0  # Max $1,000 total exposure
+V1_PER_POSITION_STOP_PCT = 0.10     # 10% hard stop per position
+V1_PAPER_EQUITY = 1000.0            # $1,000 paper account
 
 
 class AutopilotMode(str, Enum):
@@ -43,14 +58,23 @@ class StrategyTemplate(str, Enum):
 V1_TEMPLATES = [StrategyTemplate.LONG_CALL, StrategyTemplate.LONG_PUT]
 
 
-# Default liquid universe - restricted to 5 tickers for testing
+# ============================================================================
+# V1 UNIVERSE WHITELIST - STRICTLY ENFORCED
+# ============================================================================
+# Only these symbols are allowed for trading. Any symbol not in this list
+# will be REJECTED even if added to autopilot_config.json
+# This prevents accidental trading of illiquid or unwanted symbols.
+# ============================================================================
 DEFAULT_UNIVERSE = [
-    "SPY",   # S&P 500 ETF
-    "GLD",   # Gold ETF  
-    "GOOGL", # Google
-    "NVDA",  # NVIDIA
-    "AAPL",  # Apple
+    "SPY",   # S&P 500 ETF - most liquid
+    "GLD",   # Gold ETF - hedging
+    "GOOGL", # Google - large cap tech
+    "NVDA",  # NVIDIA - high volatility tech
+    "AAPL",  # Apple - high liquidity
 ]
+
+# Symbols that are NEVER allowed (explicitly blocked)
+BLOCKED_SYMBOLS = ["SLV", "PPLT", "USO", "TLT"]  # Low liquidity or problematic
 
 # Universe clusters for concentration limits
 UNIVERSE_CLUSTERS = {
@@ -59,21 +83,60 @@ UNIVERSE_CLUSTERS = {
     "sector_tech": ["XLK", "SMH"],
     "sector_fin": ["XLF"],
     "sector_energy": ["XLE"],
-    "hedges": ["GLD", "PPLT", "SLV"],
+    "hedges": ["GLD", "PPLT"],
 }
 
 
 @dataclass
 class RiskLimits:
-    """Risk management limits for paper trading."""
-    max_risk_per_trade: float = 200.0  # 20% of $1000 per trade
-    max_total_risk: float = 800.0  # 80% of $1000 equity
-    max_daily_loss: float = 100.0  # 10% of $1000 equity
-    max_open_positions: int = 5  # Max 5 positions at a time
-    max_daily_trades: int = 10  # Max 10 trades per day (buy + sell)
+    """
+    V1 Risk management limits for paper trading.
+    
+    V1 CONTRACT (Non-negotiable):
+    - Max 10 open positions
+    - Max $1,000 total exposure
+    - 10% hard stop per position
+    - Percentage-based limits for scalability
+    """
+    # V1 CONTRACT LIMITS
+    max_open_positions: int = V1_MAX_OPEN_POSITIONS        # 10 positions max
+    max_total_exposure_usd: float = V1_MAX_TOTAL_EXPOSURE_USD  # $1,000 max
+    per_position_stop_pct: float = V1_PER_POSITION_STOP_PCT    # 10% stop loss
+    
+    # V1 PERCENTAGE-BASED LIMITS (adjusted for $1000 micro-account)
+    max_risk_per_trade_pct: float = 0.20  # 20% of equity per trade ($200 for $1000)
+    max_buying_power_pct: float = 0.50    # 50% max buying power utilization (V1 mandate)
+    max_daily_loss_pct: float = 0.20      # 20% daily loss cap ($200 for $1000)
+    
+    # Additional position limits
+    max_daily_trades: int = 10            # Max 10 trades per day (buy + sell)
     max_positions_per_underlying: int = 1
     max_positions_per_cluster: int = 2
-    max_cluster_risk_pct: float = 0.6  # 60% max in any cluster
+    max_cluster_risk_pct: float = 0.6     # 60% max in any cluster
+    
+    # Legacy dollar amounts (computed from percentages in validate())
+    max_risk_per_trade: float = 200.0     # $200 for $1000 account (20%)
+    max_total_risk: float = 500.0         # $500 for $1000 account (50%)
+    max_daily_loss: float = 200.0         # $200 for $1000 account (20%)
+    
+    def validate_for_equity(self, equity: float) -> 'RiskLimits':
+        """
+        Compute dollar amounts from percentage limits.
+        
+        V1 COMPLIANCE: All risk calculations are percentage-based.
+        """
+        # Compute dollar values from percentages
+        self.max_risk_per_trade = equity * self.max_risk_per_trade_pct
+        self.max_total_risk = equity * self.max_buying_power_pct
+        self.max_daily_loss = equity * self.max_daily_loss_pct
+        
+        logger.info(
+            f"V1 Risk Limits for ${equity:.0f} equity: "
+            f"per-trade=${self.max_risk_per_trade:.0f} ({self.max_risk_per_trade_pct*100:.0f}%), "
+            f"buying power=${self.max_total_risk:.0f} ({self.max_buying_power_pct*100:.0f}%)"
+        )
+        
+        return self
 
 
 @dataclass
@@ -93,21 +156,54 @@ class StrategyConstraints:
 
 
 @dataclass
+class AntiThrashControls:
+    """
+    V1 Anti-thrash controls to prevent excessive trading after losses.
+    
+    These controls protect against:
+    1. Rapid re-entry after a stop-out (per-ticker cooldown)
+    2. Consecutive stop-outs triggering a circuit breaker
+    3. Daily loss limit to prevent catastrophic drawdown
+    """
+    # Per-ticker cooldown after stop-out
+    ticker_cooldown_seconds: int = 1800  # 30 minutes after stop-out
+    
+    # Consecutive stop-out circuit breaker
+    max_consecutive_stopouts: int = 3  # After 3 consecutive stops, pause
+    circuit_breaker_duration_seconds: int = 3600  # 1 hour pause
+    
+    # Daily loss limit (conservative)
+    daily_loss_limit_pct: float = 0.05  # 5% of equity (more conservative than 10%)
+    
+    # Trade frequency limits
+    min_seconds_between_entries: int = 60  # 1 minute minimum between entries
+
+
+@dataclass
 class SingleLegConstraints:
-    """Constraints for single-leg options (v1)."""
-    # Delta targeting (0.35-0.65 for ATM-ish)
-    target_delta_min: float = 0.35
-    target_delta_max: float = 0.65
-    # Risk parameters
-    stop_loss_pct: float = -0.20  # Exit at -20% premium loss
-    profit_target_pct: float = 0.50  # Exit at +50% premium gain
+    """
+    Constraints for single-leg options (v1).
+    
+    HIGH WIN RATE SETTINGS:
+    - Prefer OTM options (0.25-0.50 delta) for better risk/reward
+    - Tight stop loss at 8% to minimize damage
+    - Take profits quickly at 25% to lock in wins
+    - Prefer 5-14 DTE for balance of time decay vs movement
+    """
+    # Delta targeting - OTM-focused for directional plays
+    target_delta_min: float = 0.25  # More OTM
+    target_delta_max: float = 0.50  # Less ATM
+    # Risk parameters - TIGHT controls for high win rate
+    stop_loss_pct: float = -0.08  # Exit at -8% premium loss (tighter)
+    profit_target_pct: float = 0.25  # Exit at +25% premium gain (faster)
+    break_even_trigger_pct: float = 0.05  # Move stop to break-even at +5%
     # Time management
     time_stop_eod: bool = True  # Flatten at end of day for 0DTE
-    max_dte: int = 7  # Max days to expiration
-    min_dte: int = 0  # Minimum DTE (0 for 0DTE)
+    max_dte: int = 14  # Max 14 days to expiration
+    min_dte: int = 3   # Min 3 DTE (avoid gamma risk)
     # Liquidity
-    min_bid: float = 0.05  # Minimum bid price
-    max_spread_pct: float = 0.20  # Max bid-ask spread as % of mid
+    min_bid: float = 0.10  # Minimum bid price (higher = more liquid)
+    max_spread_pct: float = 0.15  # Max bid-ask spread as % of mid (tighter)
 
 
 @dataclass
@@ -174,13 +270,20 @@ class AutopilotConfig:
     # Risk limits
     risk_limits: RiskLimits = field(default_factory=RiskLimits)
     
+    # Anti-thrash controls (V1)
+    anti_thrash: AntiThrashControls = field(default_factory=AntiThrashControls)
+    
     # Universe
     universe: List[str] = field(default_factory=lambda: DEFAULT_UNIVERSE.copy())
     
-    # Strategy whitelist
+    # Strategy whitelist - V1: LONG_CALL and LONG_PUT only
+    # Credit spreads/iron condors require V2+
     allowed_strategies: List[StrategyTemplate] = field(
-        default_factory=lambda: list(StrategyTemplate)
+        default_factory=lambda: V1_TEMPLATES.copy()
     )
+    
+    # Feature flag for Phase 1.5 debit verticals
+    enable_debit_verticals: bool = False
     
     # Strategy constraints
     strategy_constraints: StrategyConstraints = field(
@@ -198,6 +301,35 @@ class AutopilotConfig:
     
     # Schedule (times in HH:MM format, America/New_York)
     scan_times: List[str] = field(default_factory=lambda: ["09:35", "12:00", "15:30"])
+    
+    def validate(self) -> None:
+        """
+        Validate config against V1 contract rules.
+        
+        V1 CONTRACT ENFORCEMENT:
+        - Only LONG_CALL and LONG_PUT templates allowed
+        - Risk limits must respect V1 constraints
+        
+        Raises:
+            ValueError: If config violates V1 contract
+        """
+        # V1 CONTRACT: Only long premium templates allowed
+        for template in self.allowed_strategies:
+            if template not in V1_TEMPLATES:
+                raise ValueError(
+                    f"V1 Contract Violation: Template '{template.value}' is not allowed in V1. "
+                    f"Only LONG_CALL and LONG_PUT are permitted. Short premium (spreads) "
+                    f"require V2+."
+                )
+        
+        # V1 CONTRACT: Validate risk limits
+        if self.risk_limits.max_open_positions > V1_MAX_OPEN_POSITIONS:
+            raise ValueError(
+                f"V1 Contract Violation: max_open_positions ({self.risk_limits.max_open_positions}) "
+                f"exceeds V1 limit ({V1_MAX_OPEN_POSITIONS})."
+            )
+        
+        logger.info("V1 Config validation passed")
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary for API/storage."""
@@ -248,6 +380,7 @@ class AutopilotConfig:
                 "fallback_to_deterministic": self.llm_settings.fallback_to_deterministic,
             },
             "scan_times": self.scan_times,
+            "enable_debit_verticals": self.enable_debit_verticals,
         }
     
     @classmethod
@@ -284,15 +417,43 @@ class AutopilotConfig:
                 max_positions_per_underlying=rl.get("max_positions_per_underlying", 2),
                 max_positions_per_cluster=rl.get("max_positions_per_cluster", 2),
                 max_cluster_risk_pct=rl.get("max_cluster_risk_pct", 0.6),
+                max_daily_trades=rl.get("max_daily_trades", 20),  # Load from config!
+                max_risk_per_trade_pct=rl.get("max_risk_per_trade_pct", 0.20),
+                max_buying_power_pct=rl.get("max_buying_power_pct", 0.50),
             )
         
         if "universe" in data:
-            config.universe = data["universe"]
+            # V1 UNIVERSE ENFORCEMENT: Only allow symbols from DEFAULT_UNIVERSE
+            # This prevents misconfiguration that could trade unintended symbols
+            requested_universe = data["universe"]
+            validated_universe = [s for s in requested_universe if s in DEFAULT_UNIVERSE]
+            invalid_symbols = [s for s in requested_universe if s not in DEFAULT_UNIVERSE]
+            
+            if invalid_symbols:
+                logger.warning(
+                    f"V1 UNIVERSE ENFORCEMENT: Removed invalid symbols: {invalid_symbols}. "
+                    f"Only these are allowed: {DEFAULT_UNIVERSE}"
+                )
+            
+            # Use validated universe, or default if empty
+            config.universe = validated_universe if validated_universe else DEFAULT_UNIVERSE.copy()
+            logger.info(f"V1 Universe set to: {config.universe}")
         
         if "allowed_strategies" in data:
+            requested = [StrategyTemplate(s) for s in data["allowed_strategies"]]
+            # V1 enforcement: filter to only V1-allowed templates
             config.allowed_strategies = [
-                StrategyTemplate(s) for s in data["allowed_strategies"]
+                s for s in requested if s in V1_TEMPLATES
             ]
+            # Warn if any were filtered out
+            filtered_out = [s for s in requested if s not in V1_TEMPLATES]
+            if filtered_out:
+                logger.warning(
+                    f"V1 compliance: Filtered out non-V1 templates: {[s.value for s in filtered_out]}"
+                )
+        
+        if "enable_debit_verticals" in data:
+            config.enable_debit_verticals = bool(data["enable_debit_verticals"])
         
         if "strategy_constraints" in data:
             sc = data["strategy_constraints"]
@@ -343,6 +504,72 @@ class AutopilotConfig:
             if symbol in symbols:
                 return cluster_name
         return None
+
+    def validate_v1_compliance(self) -> List[str]:
+        """
+        Validate configuration is V1 compliant.
+        Returns list of violations (empty = compliant).
+        """
+        violations = []
+        
+        # Check allowed strategies
+        for strategy in self.allowed_strategies:
+            if strategy not in V1_TEMPLATES:
+                violations.append(
+                    f"Strategy {strategy.value} not allowed in V1 (only LONG_CALL, LONG_PUT)"
+                )
+        
+        # Check debit verticals flag
+        if self.enable_debit_verticals:
+            violations.append(
+                "Debit verticals enabled but require Phase 1.5+ (set enable_debit_verticals=False)"
+            )
+        
+        return violations
+
+    def enforce_v1_templates(self) -> None:
+        """Enforce V1-only templates by filtering allowed_strategies."""
+        self.allowed_strategies = [
+            s for s in self.allowed_strategies if s in V1_TEMPLATES
+        ]
+        if not self.allowed_strategies:
+            self.allowed_strategies = V1_TEMPLATES.copy()
+
+    def is_strategy_allowed(self, strategy: StrategyTemplate) -> bool:
+        """Check if a strategy is allowed under current config."""
+        # V1 hard gate: only V1 templates allowed
+        if strategy not in V1_TEMPLATES:
+            return False
+        # Additional debit vertical gate for Phase 1.5
+        if strategy in [StrategyTemplate.CALL_DEBIT_SPREAD, StrategyTemplate.PUT_DEBIT_SPREAD]:
+            return self.enable_debit_verticals
+        return strategy in self.allowed_strategies
+
+    def is_symbol_allowed(self, symbol: str) -> bool:
+        """
+        Check if a symbol is allowed for trading.
+        
+        V1 ENFORCEMENT:
+        1. Symbol must be in DEFAULT_UNIVERSE whitelist
+        2. Symbol must NOT be in BLOCKED_SYMBOLS
+        3. Symbol must be in current config.universe
+        """
+        # Check blocked list first
+        if symbol in BLOCKED_SYMBOLS:
+            logger.warning(f"V1 SYMBOL GATE: {symbol} is in BLOCKED_SYMBOLS list")
+            return False
+        
+        # Check whitelist
+        if symbol not in DEFAULT_UNIVERSE:
+            logger.warning(f"V1 SYMBOL GATE: {symbol} not in DEFAULT_UNIVERSE whitelist")
+            return False
+        
+        # Check current config
+        if symbol not in self.universe:
+            logger.debug(f"Symbol {symbol} not in current universe config")
+            return False
+        
+        return True
 
 
 # Config storage path

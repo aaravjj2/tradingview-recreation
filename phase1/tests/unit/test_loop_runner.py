@@ -11,12 +11,12 @@ from pathlib import Path
 
 from services.charting.loop_runner import (
     LoopPhase,
-    TestStatus,
-    TestResult,
+    LoopTestStatus,
+    LoopSingleTestResult,
     LoopIteration,
     LoopConfig,
     LoopState,
-    TestDiscovery,
+    LoopTestDiscovery,
     LoopReporter,
     ThreeLoopRunner,
     LoopOrchestrator,
@@ -40,59 +40,59 @@ class TestLoopPhase:
 
 
 # ============================================================================
-# TestStatus Tests
+# LoopTestStatus Tests
 # ============================================================================
 
-class TestTestStatus:
-    """Tests for TestStatus enum."""
+class TestLoopTestStatusClass:
+    """Tests for LoopTestStatus enum."""
     
     def test_all_statuses_exist(self):
         """Test all statuses exist."""
-        assert TestStatus.PENDING is not None
-        assert TestStatus.RUNNING is not None
-        assert TestStatus.PASSED is not None
-        assert TestStatus.FAILED is not None
-        assert TestStatus.SKIPPED is not None
-        assert TestStatus.ERROR is not None
+        assert LoopTestStatus.PENDING is not None
+        assert LoopTestStatus.RUNNING is not None
+        assert LoopTestStatus.PASSED is not None
+        assert LoopTestStatus.FAILED is not None
+        assert LoopTestStatus.SKIPPED is not None
+        assert LoopTestStatus.ERROR is not None
 
 
 # ============================================================================
-# TestResult Tests
+# LoopSingleTestResult Tests
 # ============================================================================
 
-class TestTestResult:
-    """Tests for TestResult class."""
+class TestLoopSingleTestResultClass:
+    """Tests for LoopSingleTestResult class."""
     
     def test_create_passed_result(self):
         """Test creating passed result."""
-        result = TestResult(
+        result = LoopSingleTestResult(
             name="test_example",
-            status=TestStatus.PASSED,
+            status=LoopTestStatus.PASSED,
             phase=LoopPhase.UNIT_TEST,
             duration_ms=50.0,
         )
         
         assert result.name == "test_example"
-        assert result.status == TestStatus.PASSED
+        assert result.status == LoopTestStatus.PASSED
         assert result.duration_ms == 50.0
     
     def test_create_failed_result(self):
         """Test creating failed result."""
-        result = TestResult(
+        result = LoopSingleTestResult(
             name="test_failure",
-            status=TestStatus.FAILED,
+            status=LoopTestStatus.FAILED,
             phase=LoopPhase.UNIT_TEST,
             error_message="Assertion failed",
         )
         
-        assert result.status == TestStatus.FAILED
+        assert result.status == LoopTestStatus.FAILED
         assert result.error_message == "Assertion failed"
     
     def test_visual_result(self):
         """Test visual test result."""
-        result = TestResult(
+        result = LoopSingleTestResult(
             name="visual_test",
-            status=TestStatus.FAILED,
+            status=LoopTestStatus.FAILED,
             phase=LoopPhase.VISUAL_PARITY,
             diff_percentage=1.5,
             pixel_diff_count=1000,
@@ -103,9 +103,9 @@ class TestTestResult:
     
     def test_to_dict(self):
         """Test converting to dict."""
-        result = TestResult(
+        result = LoopSingleTestResult(
             name="test",
-            status=TestStatus.PASSED,
+            status=LoopTestStatus.PASSED,
             phase=LoopPhase.UNIT_TEST,
         )
         
@@ -151,9 +151,9 @@ class TestLoopIteration:
         )
         
         iteration.unit_results = [
-            TestResult("test1", TestStatus.PASSED, LoopPhase.UNIT_TEST),
-            TestResult("test2", TestStatus.PASSED, LoopPhase.UNIT_TEST),
-            TestResult("test3", TestStatus.FAILED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test1", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test2", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test3", LoopTestStatus.FAILED, LoopPhase.UNIT_TEST),
         ]
         
         assert iteration.total_tests == 3
@@ -168,8 +168,8 @@ class TestLoopIteration:
         )
         
         iteration.unit_results = [
-            TestResult("test1", TestStatus.PASSED, LoopPhase.UNIT_TEST),
-            TestResult("test2", TestStatus.PASSED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test1", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test2", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST),
         ]
         
         assert iteration.is_successful
@@ -182,8 +182,8 @@ class TestLoopIteration:
         )
         
         iteration.unit_results = [
-            TestResult("test1", TestStatus.PASSED, LoopPhase.UNIT_TEST),
-            TestResult("test2", TestStatus.FAILED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test1", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test2", LoopTestStatus.FAILED, LoopPhase.UNIT_TEST),
         ]
         
         assert not iteration.is_successful
@@ -196,8 +196,8 @@ class TestLoopIteration:
         )
         
         iteration.unit_results = [
-            TestResult("test1", TestStatus.PASSED, LoopPhase.UNIT_TEST),
-            TestResult("test2", TestStatus.SKIPPED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test1", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST),
+            LoopSingleTestResult("test2", LoopTestStatus.SKIPPED, LoopPhase.UNIT_TEST),
         ]
         
         assert not iteration.is_successful
@@ -287,17 +287,17 @@ class TestLoopState:
 # TestDiscovery Tests
 # ============================================================================
 
-class TestTestDiscovery:
-    """Tests for TestDiscovery class."""
+class TestLoopTestDiscoveryClass:
+    """Tests for LoopTestDiscovery class."""
     
     def test_create_discovery(self):
         """Test creating discovery."""
-        discovery = TestDiscovery("tests")
+        discovery = LoopTestDiscovery("tests")
         assert discovery is not None
     
     def test_discover_nonexistent_dir(self):
         """Test discovering from nonexistent directory."""
-        discovery = TestDiscovery("/nonexistent/path")
+        discovery = LoopTestDiscovery("/nonexistent/path")
         
         assert discovery.discover_unit_tests() == []
         assert discovery.discover_integration_tests() == []
@@ -312,7 +312,7 @@ class TestTestDiscovery:
             (unit_dir / "test_another.py").touch()
             (unit_dir / "not_a_test.py").touch()
             
-            discovery = TestDiscovery(tmpdir)
+            discovery = LoopTestDiscovery(tmpdir)
             tests = discovery.discover_unit_tests()
             
             assert len(tests) == 2
@@ -331,7 +331,7 @@ class TestTestDiscovery:
             with open(golden_dir / "manifest.json", "w") as f:
                 json.dump(manifest, f)
             
-            discovery = TestDiscovery("tests")
+            discovery = LoopTestDiscovery("tests")
             tests = discovery.discover_visual_tests(str(golden_dir))
             
             assert len(tests) == 2
@@ -358,7 +358,7 @@ class TestLoopReporter:
             state = LoopState()
             state.iterations.append(LoopIteration(1, 0, end_time=1))
             state.iterations[0].unit_results = [
-                TestResult("test1", TestStatus.PASSED, LoopPhase.UNIT_TEST),
+                LoopSingleTestResult("test1", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST),
             ]
             
             summary = reporter.generate_summary(state)
@@ -445,7 +445,7 @@ class TestThreeLoopRunner:
         """Test with custom test runners."""
         def custom_unit_runner(tests):
             return [
-                TestResult("custom_test", TestStatus.PASSED, LoopPhase.UNIT_TEST)
+                LoopSingleTestResult("custom_test", LoopTestStatus.PASSED, LoopPhase.UNIT_TEST)
             ]
         
         with tempfile.TemporaryDirectory() as tmpdir:

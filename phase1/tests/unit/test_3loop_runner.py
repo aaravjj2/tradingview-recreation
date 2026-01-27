@@ -16,19 +16,19 @@ import sys
 sys.path.insert(0, '/home/aarav/Aarav/Tradingview recreation/phase1')
 
 from scripts.run_3loop import (
-    TestResult,
+    LoopTestResult,
     LoopResult,
-    TestRunner,
+    LoopTestRunner,
     ThreeLoopRunner,
 )
 
 
-class TestTestResult:
-    """Tests for TestResult."""
+class TestLoopTestResult:
+    """Tests for LoopTestResult."""
     
     def test_success_when_no_failures(self):
         """Should be success when no failures or errors."""
-        result = TestResult(
+        result = LoopTestResult(
             name="test",
             passed=10,
             failed=0,
@@ -41,7 +41,7 @@ class TestTestResult:
     
     def test_not_success_when_failed(self):
         """Should not be success when failed > 0."""
-        result = TestResult(
+        result = LoopTestResult(
             name="test",
             passed=9,
             failed=1,
@@ -54,7 +54,7 @@ class TestTestResult:
     
     def test_not_success_when_errors(self):
         """Should not be success when errors > 0."""
-        result = TestResult(
+        result = LoopTestResult(
             name="test",
             passed=10,
             failed=0,
@@ -67,7 +67,7 @@ class TestTestResult:
     
     def test_total(self):
         """Should sum all counts."""
-        result = TestResult(
+        result = LoopTestResult(
             name="test",
             passed=5,
             failed=2,
@@ -86,9 +86,9 @@ class TestLoopResult:
         """Should return True when all tests pass."""
         result = LoopResult(
             iteration=1,
-            unit=TestResult("unit", 10, 0, 0, 0, 1.0),
-            integration=TestResult("int", 5, 0, 0, 0, 1.0),
-            parity=TestResult("parity", 3, 0, 0, 0, 1.0),
+            unit=LoopTestResult("unit", 10, 0, 0, 0, 1.0),
+            integration=LoopTestResult("int", 5, 0, 0, 0, 1.0),
+            parity=LoopTestResult("parity", 3, 0, 0, 0, 1.0),
         )
         
         assert result.all_passed is True
@@ -97,9 +97,9 @@ class TestLoopResult:
         """Should return False when unit tests fail."""
         result = LoopResult(
             iteration=1,
-            unit=TestResult("unit", 9, 1, 0, 0, 1.0),
-            integration=TestResult("int", 5, 0, 0, 0, 1.0),
-            parity=TestResult("parity", 3, 0, 0, 0, 1.0),
+            unit=LoopTestResult("unit", 9, 1, 0, 0, 1.0),
+            integration=LoopTestResult("int", 5, 0, 0, 0, 1.0),
+            parity=LoopTestResult("parity", 3, 0, 0, 0, 1.0),
         )
         
         assert result.all_passed is False
@@ -108,21 +108,21 @@ class TestLoopResult:
         """Should include E2E in check."""
         result = LoopResult(
             iteration=1,
-            unit=TestResult("unit", 10, 0, 0, 0, 1.0),
-            integration=TestResult("int", 5, 0, 0, 0, 1.0),
-            parity=TestResult("parity", 3, 0, 0, 0, 1.0),
-            e2e=TestResult("e2e", 2, 1, 0, 0, 1.0),
+            unit=LoopTestResult("unit", 10, 0, 0, 0, 1.0),
+            integration=LoopTestResult("int", 5, 0, 0, 0, 1.0),
+            parity=LoopTestResult("parity", 3, 0, 0, 0, 1.0),
+            e2e=LoopTestResult("e2e", 2, 1, 0, 0, 1.0),
         )
         
         assert result.all_passed is False
 
 
-class TestTestRunner:
-    """Tests for TestRunner."""
+class TestLoopTestRunnerClass:
+    """Tests for LoopTestRunner."""
     
     def test_parse_passed_output(self):
         """Should parse passed count."""
-        runner = TestRunner(Path("."))
+        runner = LoopTestRunner(Path("."))
         
         output = "10 passed in 1.23s"
         result = runner._parse_result("test", output, 1.23)
@@ -131,7 +131,7 @@ class TestTestRunner:
     
     def test_parse_failed_output(self):
         """Should parse failed count."""
-        runner = TestRunner(Path("."))
+        runner = LoopTestRunner(Path("."))
         
         output = "8 passed, 2 failed in 1.23s"
         result = runner._parse_result("test", output, 1.23)
@@ -141,7 +141,7 @@ class TestTestRunner:
     
     def test_parse_skipped_output(self):
         """Should parse skipped count."""
-        runner = TestRunner(Path("."))
+        runner = LoopTestRunner(Path("."))
         
         output = "10 passed, 1 skipped in 1.23s"
         result = runner._parse_result("test", output, 1.23)
@@ -166,9 +166,9 @@ class TestThreeLoopRunner:
         runner.results = [
             LoopResult(
                 iteration=1,
-                unit=TestResult("unit", 10, 0, 0, 0, 1.0),
-                integration=TestResult("int", 5, 0, 0, 0, 1.0),
-                parity=TestResult("parity", 3, 0, 0, 0, 1.0),
+                unit=LoopTestResult("unit", 10, 0, 0, 0, 1.0),
+                integration=LoopTestResult("int", 5, 0, 0, 0, 1.0),
+                parity=LoopTestResult("parity", 3, 0, 0, 0, 1.0),
             )
         ]
         

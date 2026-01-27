@@ -32,18 +32,22 @@ class BrokerExitRule:
     """
     Exit rule attached to a managed position.
     
-    NEW LOGIC:
-    - Hard stop loss at 10% loss (always)
-    - When profit reaches 10%, set trailing stop at 5% profit
-    - When profit reaches 20%, set trailing stop at 15% profit
-    - Pattern continues: trailing_stop = profit_level - 5%
+    HIGH WIN RATE LOGIC:
+    - Hard stop loss at 8% loss (tighter = less damage per loss)
+    - When profit reaches 5%, move stop to break-even (protect gains!)
+    - When profit reaches 15%, set trailing stop at 10% profit
+    - Profit target at 25% (take profits faster, don't give back gains)
+    
+    The key insight: In options, it's better to take many small wins
+    than to wait for big wins that often reverse.
     """
-    profit_target_pct: float = 50.0  # Take profit at 50% (optional)
-    stop_loss_pct: float = 10.0      # Hard stop at 10% LOSS
+    profit_target_pct: float = 25.0  # Take profit at 25% (faster profit taking)
+    stop_loss_pct: float = 8.0       # Hard stop at 8% LOSS (tighter risk control)
     time_stop_dte: int = 1           # Close if DTE <= 1 day
     dte_threshold: int = 0           # Hard close at DTE=0
     trailing_stop_pct: Optional[float] = None  # Dynamic trailing stop
     trailing_step: float = 5.0       # Trailing follows profit - 5%
+    break_even_trigger_pct: float = 5.0  # Move stop to break-even at 5% profit
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -53,17 +57,19 @@ class BrokerExitRule:
             "dte_threshold": self.dte_threshold,
             "trailing_stop_pct": self.trailing_stop_pct,
             "trailing_step": self.trailing_step,
+            "break_even_trigger_pct": self.break_even_trigger_pct,
         }
     
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "BrokerExitRule":
         return cls(
-            profit_target_pct=d.get("profit_target_pct", 50.0),
-            stop_loss_pct=d.get("stop_loss_pct", 10.0),  # 10% hard stop
+            profit_target_pct=d.get("profit_target_pct", 25.0),  # Faster profit taking
+            stop_loss_pct=d.get("stop_loss_pct", 8.0),  # 8% hard stop (tighter)
             time_stop_dte=d.get("time_stop_dte", 1),
             dte_threshold=d.get("dte_threshold", 0),
             trailing_stop_pct=d.get("trailing_stop_pct"),
             trailing_step=d.get("trailing_step", 5.0),
+            break_even_trigger_pct=d.get("break_even_trigger_pct", 5.0),
         )
 
 
@@ -212,11 +218,16 @@ class EnrichedBrokerPosition:
 # ============================================================================
 
 class BrokerMetaStore:
-    """Persistent storage for position metadata (enrichment only)."""
+    """
+    Persistent storage for position metadata (enrichment only).
+    Also tracks highest profit for ALL positions (managed and unmanaged).
+    """
     
     def __init__(self, storage_path: Optional[str] = None):
         self._data: Dict[str, BrokerPositionMeta] = {}
+        self._highest_profits: Dict[str, float] = {}  # Track highest profit for ALL positions
         self._path = storage_path or "/tmp/broker_position_meta.json"
+        self._highest_path = "/tmp/broker_highest_profits.json"
         self._load()
     
     def _load(self):
@@ -229,6 +240,15 @@ class BrokerMetaStore:
                 logger.info(f"Loaded {len(self._data)} position metadata records")
         except Exception as e:
             logger.warning(f"Failed to load metadata: {e}")
+        
+        # Load highest profits separately
+        try:
+            if os.path.exists(self._highest_path):
+                with open(self._highest_path, "r") as f:
+                    self._highest_profits = json.load(f)
+                logger.info(f"Loaded highest profits for {len(self._highest_profits)} symbols")
+        except Exception as e:
+            logger.warning(f"Failed to load highest profits: {e}")
     
     def _save(self):
         try:
@@ -237,6 +257,13 @@ class BrokerMetaStore:
                 json.dump(raw, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save metadata: {e}")
+    
+    def _save_highest_profits(self):
+        try:
+            with open(self._highest_path, "w") as f:
+                json.dump(self._highest_profits, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save highest profits: {e}")
     
     def get(self, symbol: str) -> Optional[BrokerPositionMeta]:
         return self._data.get(symbol)
@@ -249,15 +276,37 @@ class BrokerMetaStore:
         if symbol in self._data:
             del self._data[symbol]
             self._save()
+        # Also clean up highest profit tracking
+        if symbol in self._highest_profits:
+            del self._highest_profits[symbol]
+            self._save_highest_profits()
     
     def all(self) -> List[BrokerPositionMeta]:
         return list(self._data.values())
     
     def update_highest_profit(self, symbol: str, pct: float):
+        """Track highest profit for ANY position (managed or unmanaged)."""
+        # Update managed position metadata if exists
         meta = self._data.get(symbol)
         if meta and pct > meta.highest_profit_pct:
             meta.highest_profit_pct = pct
             self._save()
+        
+        # Also track in separate store for ALL positions (including unmanaged)
+        current_highest = self._highest_profits.get(symbol, 0.0)
+        if pct > current_highest:
+            self._highest_profits[symbol] = pct
+            self._save_highest_profits()
+            logger.debug(f"Updated highest profit for {symbol}: {current_highest:.1f}% -> {pct:.1f}%")
+    
+    def get_highest_profit(self, symbol: str) -> float:
+        """Get highest profit seen for a symbol (works for all positions)."""
+        # Check managed position first
+        meta = self._data.get(symbol)
+        if meta:
+            return meta.highest_profit_pct
+        # Fall back to separate tracker
+        return self._highest_profits.get(symbol, 0.0)
 
 
 # ============================================================================
@@ -415,6 +464,9 @@ class BrokerPositionManager:
             curr_val = float(alpaca_pos.get("market_value", 0))
             profit = meta.entry_credit - curr_val
             profit_pct = (profit / meta.entry_credit) * 100
+        else:
+            # For unmanaged positions, use Alpaca's unrealized P&L %
+            profit_pct = float(alpaca_pos.get("unrealized_plpc", 0)) * 100
         
         return EnrichedBrokerPosition(
             symbol=symbol,
@@ -436,7 +488,7 @@ class BrokerPositionManager:
             strategy_template=meta.strategy_template if meta else None,
             exit_rules=meta.exit_rules if meta else None,
             entry_credit=meta.entry_credit if meta else 0.0,
-            highest_profit_pct=meta.highest_profit_pct if meta else 0.0,
+            highest_profit_pct=self._store.get_highest_profit(symbol),  # Track for ALL positions
             current_profit_pct=profit_pct,
         )
     
@@ -449,21 +501,21 @@ class BrokerPositionManager:
         """
         Check exit triggers for a position.
         
-        NEW LOGIC:
-        - Hard stop at 10% LOSS (immediate exit)
-        - Trailing stop kicks in at 10% profit:
-          - At 10% profit → trailing stop at 5% profit
-          - At 20% profit → trailing stop at 15% profit  
-          - Pattern: trailing_stop = highest_profit - 5%
+        HIGH WIN RATE LOGIC:
+        - Hard stop at 8% LOSS (tighter = less damage)
+        - Break-even stop: Once 5%+ profit, stop moves to 0% (protect capital!)
+        - Trailing stop kicks in at 15%+ profit: trail = highest - 5%
+        - Profit target at 25% (take wins quickly)
         """
         signals = []
         
-        # Default exit rules if none provided (10% stop, 50% target)
+        # Default exit rules with tighter risk control
         rules = pos.exit_rules or BrokerExitRule(
-            stop_loss_pct=10.0,
-            profit_target_pct=50.0,
+            stop_loss_pct=8.0,       # 8% hard stop (tighter)
+            profit_target_pct=25.0,  # 25% profit target (faster)
             time_stop_dte=1,
             trailing_step=5.0,
+            break_even_trigger_pct=5.0,  # Move to break-even at 5%
         )
         
         underlying = pos.underlying or pos.symbol
@@ -472,7 +524,7 @@ class BrokerPositionManager:
         
         print(f"MONITOR DEBUG [{pos.symbol}]: current_profit={current_pct:.1f}%, highest={highest_pct:.1f}%, stop_loss={rules.stop_loss_pct}%")
         
-        # 1. HARD STOP LOSS (10% loss = immediate exit)
+        # 1. HARD STOP LOSS (8% loss = immediate exit)
         if rules.stop_loss_pct > 0 and current_pct <= -rules.stop_loss_pct:
             print(f"MONITOR DEBUG [{pos.symbol}]: 🛑 HARD STOP TRIGGERED! Loss={current_pct:.1f}% exceeds {rules.stop_loss_pct}%")
             signals.append(BrokerExitSignal(
@@ -485,11 +537,26 @@ class BrokerPositionManager:
             ))
             return signals  # Hard stop - exit immediately
         
-        # 2. TRAILING STOP (activates at 10%+ profit)
+        # 2. BREAK-EVEN STOP (activates once position was 5%+ profitable)
+        break_even_trigger = getattr(rules, 'break_even_trigger_pct', 5.0)
+        if highest_pct >= break_even_trigger and highest_pct < 15.0:
+            # Once we've been 5%+ profitable, don't let it become a loser
+            if current_pct <= 0:
+                print(f"MONITOR DEBUG [{pos.symbol}]: 🔄 BREAK-EVEN STOP! Position was {highest_pct:.1f}% up, now at {current_pct:.1f}%")
+                signals.append(BrokerExitSignal(
+                    symbol=pos.symbol,
+                    trigger=ExitTrigger.TRAILING_STOP,
+                    trigger_value=current_pct,
+                    threshold=0.0,  # Break-even level
+                    urgency="immediate",
+                    metadata=pos.exit_rules,
+                ))
+        
+        # 3. TRAILING STOP (activates at 15%+ profit for bigger gains)
         trailing_step = getattr(rules, 'trailing_step', 5.0)
-        if highest_pct >= 10.0:
+        if highest_pct >= 15.0:
             # Calculate dynamic trailing stop level
-            # At 10% profit → trail at 5%, at 20% → trail at 15%, etc.
+            # At 15% profit → trail at 10%, at 25% → trail at 20%, etc.
             trailing_stop_level = highest_pct - trailing_step
             
             if current_pct <= trailing_stop_level:
@@ -503,7 +570,7 @@ class BrokerPositionManager:
                     metadata=pos.exit_rules,
                 ))
         
-        # 3. Profit target (optional - 50% profit exit)
+        # 4. Profit target (25% profit = take the win!) - V1: Execute immediately
         if rules.profit_target_pct > 0 and current_pct >= rules.profit_target_pct:
             print(f"MONITOR DEBUG [{pos.symbol}]: 🎯 PROFIT TARGET! {current_pct:.1f}% >= {rules.profit_target_pct}%")
             signals.append(BrokerExitSignal(
@@ -511,10 +578,10 @@ class BrokerPositionManager:
                 trigger=ExitTrigger.PROFIT_TARGET,
                 trigger_value=current_pct,
                 threshold=rules.profit_target_pct,
-                urgency="normal",
+                urgency="immediate",  # V1: Auto-execute profit targets
             ))
         
-        # 4. Time stop (DTE threshold)
+        # 4. Time stop (DTE threshold) - V1: Execute immediately when approaching expiry
         if pos.dte is not None and rules.time_stop_dte > 0 and pos.dte <= rules.time_stop_dte:
             print(f"MONITOR DEBUG [{pos.symbol}]: ⏰ TIME STOP! DTE={pos.dte} <= {rules.time_stop_dte}")
             signals.append(BrokerExitSignal(
@@ -522,7 +589,7 @@ class BrokerPositionManager:
                 trigger=ExitTrigger.TIME_STOP,
                 trigger_value=pos.dte,
                 threshold=rules.time_stop_dte,
-                urgency="normal",
+                urgency="immediate",  # V1: Auto-execute time stops
             ))
         
         # 5. DTE threshold (hard close at expiration)

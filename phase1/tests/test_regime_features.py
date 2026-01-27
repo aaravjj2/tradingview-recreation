@@ -15,13 +15,14 @@ class TestRegimeFeatures(unittest.TestCase):
 
     def test_range_expansion(self):
         # Create bars with increasing range
+        # Need 'o' for open, 'c' for close, 'h' for high, 'l' for low, 'v' for volume
         bars = [
-            {"c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
-            {"c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
-            {"c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
-            {"c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
+            {"o": 100, "c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
+            {"o": 100, "c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
+            {"o": 100, "c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
+            {"o": 100, "c": 100, "h": 101, "l": 99, "v": 1000},  # Range 2
             # Big expansion
-            {"c": 105, "h": 110, "l": 95, "v": 5000},  # Range 15
+            {"o": 100, "c": 105, "h": 110, "l": 95, "v": 5000},  # Range 15
         ]
         
         result = self.classifier.classify("TEST", bars)
@@ -43,10 +44,11 @@ class TestRegimeFeatures(unittest.TestCase):
         print(f"Range Expansion: {result.features.range_expansion}")
 
     def test_small_expansion(self):
+        # Need 'o' for open
         bars = [
-            {"c": 100, "h": 101, "l": 99, "v": 1000},
-            {"c": 100, "h": 101, "l": 99, "v": 1000}, 
-            {"c": 100, "h": 101, "l": 99, "v": 1000},
+            {"o": 100, "c": 100, "h": 101, "l": 99, "v": 1000},
+            {"o": 100, "c": 100, "h": 101, "l": 99, "v": 1000}, 
+            {"o": 100, "c": 100, "h": 101, "l": 99, "v": 1000},
         ]
         result = self.classifier.classify("TEST", bars)
         # ATR=2, Current TR=2. RE=1.0

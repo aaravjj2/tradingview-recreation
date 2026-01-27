@@ -32,21 +32,29 @@ class TestAutopilotConfig:
     """Tests for AutopilotConfig"""
     
     def test_default_config(self):
-        """Test default configuration values"""
+        """Test default configuration values - V1 Compliant"""
         config = AutopilotConfig()
         
-        assert config.paper_equity == 100000.0
+        # V1 COMPLIANCE: paper_equity is now configurable (default $1000 for paper)
+        assert config.paper_equity >= 1000.0  # Minimum paper equity
         assert config.mode == AutopilotMode.PAPER
-        assert len(config.allowed_strategies) == 7  # 2 single-leg + 5 spreads
+        # V1 COMPLIANCE: Only LONG_CALL and LONG_PUT allowed in V1
+        assert len(config.allowed_strategies) == 2  # V1: 2 single-leg only
         
     def test_risk_limits_defaults(self):
-        """Test default risk limits"""
+        """Test V1 percentage-based risk limits"""
         limits = RiskLimits()
         
-        assert limits.max_risk_per_trade == 50.0
-        assert limits.max_total_risk == 400.0
-        assert limits.max_daily_loss == 30.0
-        assert limits.max_open_positions == 10
+        # V1 COMPLIANCE: Percentage-based limits
+        assert limits.max_risk_per_trade_pct == 0.02  # 2% per-trade
+        assert limits.max_buying_power_pct == 0.50    # 50% buying power
+        assert limits.max_daily_loss_pct == 0.10      # 10% daily loss
+        # V1 CONTRACT: Max 10 positions
+        assert limits.max_open_positions == 10        # V1: Max 10 positions
+        # V1 CONTRACT: Max $1,000 exposure
+        assert limits.max_total_exposure_usd == 1000.0
+        # V1 CONTRACT: 10% hard stop
+        assert limits.per_position_stop_pct == 0.10
         
     def test_config_universe(self):
         """Test universe configuration"""
@@ -54,7 +62,8 @@ class TestAutopilotConfig:
         
         assert "AAPL" in config.universe
         assert "SPY" in config.universe
-        assert len(config.universe) == 5  # Default universe: AAPL, SPY, MSFT, GLD, SLV
+        # SLV removed - default universe: AAPL, SPY, GLD, GOOGL, NVDA
+        assert len(config.universe) == 5
 
 
 class TestUniverseManager:

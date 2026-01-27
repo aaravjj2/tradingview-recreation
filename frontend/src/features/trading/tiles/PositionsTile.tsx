@@ -45,7 +45,7 @@ export function PositionsTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
     return (
         <div className="h-full flex flex-col">
             {/* Summary */}
-            <div className="grid grid-cols-2 gap-2 p-3 border-b border-border bg-element-bg/50">
+            <div className="grid grid-cols-2 gap-2 p-2 border-b border-border bg-element-bg/50">
                 <div>
                     <div className="text-xs text-text-muted">Total Value</div>
                     <div className="text-lg font-semibold text-text">${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
@@ -53,8 +53,8 @@ export function PositionsTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
                 <div>
                     <div className="text-xs text-text-muted">Unrealized P&L</div>
                     <div className={cn(
-                        "text-lg font-semibold flex items-center gap-1",
-                        totalPL >= 0 ? "text-green-500" : "text-red-500"
+                        "text-lg font-semibold flex items-center gap-1 tabular-nums",
+                        totalPL >= 0 ? "text-up" : "text-down"
                     )}>
                         {totalPL >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                         {totalPL >= 0 ? '+' : ''}${totalPL.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -63,7 +63,7 @@ export function PositionsTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
             </div>
 
             {/* Header */}
-            <div className="grid grid-cols-5 gap-2 px-3 py-2 text-xs text-text-muted border-b border-border">
+            <div className="grid grid-cols-5 gap-2 px-3 py-1 text-xs text-text-muted border-b border-border">
                 <div className="flex items-center gap-2">
                     Symbol <span className="px-1 py-0.5 bg-yellow-900/50 text-yellow-500 rounded text-[10px] border border-yellow-800">MOCK DATA</span>
                 </div>
@@ -78,15 +78,15 @@ export function PositionsTile({ tileId: _tileId, isMaximized: _isMaximized }: Ti
                 {positions.map(pos => (
                     <div
                         key={pos.symbol}
-                        className="grid grid-cols-5 gap-2 px-3 py-2 text-sm hover:bg-element-bg cursor-pointer border-b border-border/50"
+                        className="grid grid-cols-5 gap-2 px-3 py-1 text-sm hover:bg-element-bg cursor-pointer border-b border-border/50"
                     >
                         <div className="font-medium text-text">{pos.symbol}</div>
                         <div className="text-right text-text-secondary">{pos.quantity}</div>
                         <div className="text-right font-mono text-text">${pos.currentPrice.toFixed(2)}</div>
                         <div className="text-right font-mono text-text">${pos.marketValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
                         <div className={cn(
-                            "text-right font-mono",
-                            pos.unrealizedPL >= 0 ? "text-green-500" : "text-red-500"
+                            "text-right font-mono tabular-nums",
+                            pos.unrealizedPL >= 0 ? "text-up" : "text-down"
                         )}>
                             {pos.unrealizedPL >= 0 ? '+' : ''}{pos.unrealizedPLPercent.toFixed(2)}%
                         </div>

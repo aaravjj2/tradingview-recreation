@@ -10,6 +10,13 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, date, timedelta
 from dataclasses import dataclass
 import requests
+from pathlib import Path
+
+# Load keys.env to ensure API keys are available
+from dotenv import load_dotenv
+_keys_path = Path(__file__).parent.parent.parent / "keys.env"
+if _keys_path.exists():
+    load_dotenv(_keys_path, override=True)
 
 logger = logging.getLogger(__name__)
 

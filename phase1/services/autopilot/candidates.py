@@ -186,18 +186,19 @@ class CandidateGenerator:
         trend = features.trend
 
         if trend == TrendDirection.BULLISH:
-            template = StrategyTemplate.PUT_CREDIT_SPREAD
-            option_type = "put"
-            direction = -1
-        elif trend == TrendDirection.BEARISH:
-            template = StrategyTemplate.CALL_CREDIT_SPREAD
+            # V1 compliance: use LONG_CALL for bullish (long premium only)
+            template = StrategyTemplate.LONG_CALL
             option_type = "call"
             direction = 1
-        else:
-            # Neutral fallback: choose credit spread based on IV
-            template = StrategyTemplate.PUT_CREDIT_SPREAD
+        elif trend == TrendDirection.BEARISH:
+            # V1 compliance: use LONG_PUT for bearish (long premium only)
+            template = StrategyTemplate.LONG_PUT
             option_type = "put"
             direction = -1
+        else:
+            # Neutral: no strong directional bias, skip for V1
+            # (V1 requires directional conviction for long premium)
+            return []
 
         # Find short leg near target delta
         target_delta = 0.30
@@ -343,6 +344,32 @@ class CandidateGenerator:
         features: SymbolFeatures,
     ) -> bool:
         """Check if a template is eligible given current market features."""
+        from .config import V1_TEMPLATES
+        
+        # V1 HARD GATE: Only V1 templates allowed
+        if template not in V1_TEMPLATES:
+            logger.debug(f"Template {template.value} rejected: not in V1_TEMPLATES")
+            return False
+        
+        # V1 single-leg templates: require directional alignment
+        if template == StrategyTemplate.LONG_CALL:
+            # Long call requires bullish or neutral trend
+            if features.trend == TrendDirection.BEARISH:
+                return False
+        elif template == StrategyTemplate.LONG_PUT:
+            # Long put requires bearish or neutral trend
+            if features.trend == TrendDirection.BULLISH:
+                return False
+        
+        return True
+    
+    # LEGACY V2+ method - disabled in V1
+    def _is_template_eligible_v2(
+        self,
+        template: StrategyTemplate,
+        features: SymbolFeatures,
+    ) -> bool:
+        """V2+ eligibility check for spread templates. NOT USED IN V1."""
         # Relax constraints for now to allow candidate generation
         # TODO: Re-enable after initial testing
         
@@ -375,6 +402,13 @@ class CandidateGenerator:
         price: float,
     ) -> List[TradeCandidate]:
         """Generate candidates for a specific symbol and template."""
+        from .config import V1_TEMPLATES
+        
+        # V1 HARD GATE: reject non-V1 templates at generation
+        if template not in V1_TEMPLATES:
+            logger.debug(f"V1 gate: rejecting {template.value} for {symbol}")
+            return []
+        
         candidates = []
         
         dte_min, dte_max = self.DTE_CONSTRAINTS.get(template, (14, 45))
@@ -383,7 +417,7 @@ class CandidateGenerator:
         expiries = self._get_expiries_in_range(chain, dte_min, dte_max)
         
         for expiry, dte in expiries[:3]:  # Limit to 3 expiries per template
-            # V1 Single-leg templates
+            # V1 Single-leg templates (ONLY THESE ARE ALLOWED)
             if template == StrategyTemplate.LONG_CALL:
                 candidates.extend(
                     self._gen_long_call(symbol, features, chain, price, expiry, dte)

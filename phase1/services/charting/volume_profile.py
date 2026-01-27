@@ -98,7 +98,7 @@ class VolumeProfileCalculator:
         # Filter bars to time range
         filtered_bars = [
             b for b in bars
-            if start_time <= datetime.fromtimestamp(b.time) <= end_time
+            if start_time <= datetime.fromtimestamp(b.ts_start_ms / 1000) <= end_time
         ]
         
         if not filtered_bars or len(filtered_bars) < 2:
@@ -131,7 +131,7 @@ class VolumeProfileCalculator:
         # Filter bars to session date (simplistic - assumes daily session)
         filtered_bars = [
             b for b in bars
-            if datetime.fromtimestamp(b.time).date() == session_date.date()
+            if datetime.fromtimestamp(b.ts_start_ms / 1000).date() == session_date.date()
         ]
         
         if not filtered_bars or len(filtered_bars) < 2:
@@ -257,8 +257,8 @@ class VolumeProfileCalculator:
             lvn_zones=lvn_zones,
             levels=levels,
             total_volume=total_volume,
-            start_time=datetime.fromtimestamp(bars[0].time),
-            end_time=datetime.fromtimestamp(bars[-1].time),
+            start_time=datetime.fromtimestamp(bars[0].ts_start_ms / 1000),
+            end_time=datetime.fromtimestamp(bars[-1].ts_start_ms / 1000),
             profile_type=profile_type,
         )
     

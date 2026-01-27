@@ -22,8 +22,8 @@ import argparse
 
 
 @dataclass
-class TestResult:
-    """Result of a test run."""
+class LoopTestResult:
+    """Result of a test run (renamed to avoid pytest collection)."""
     
     name: str
     passed: int
@@ -47,10 +47,10 @@ class LoopResult:
     """Result of one complete loop."""
     
     iteration: int
-    unit: TestResult
-    integration: TestResult
-    parity: TestResult
-    e2e: Optional[TestResult] = None
+    unit: LoopTestResult
+    integration: LoopTestResult
+    parity: LoopTestResult
+    e2e: Optional[LoopTestResult] = None
     
     @property
     def all_passed(self) -> bool:
@@ -60,8 +60,8 @@ class LoopResult:
         return all(r.success for r in results)
 
 
-class TestRunner:
-    """Runs pytest and parses results."""
+class LoopTestRunner:
+    """Runs pytest and parses results (renamed to avoid pytest collection)."""
     
     def __init__(self, project_root: Path):
         self.project_root = project_root
@@ -71,7 +71,7 @@ class TestRunner:
         name: str,
         pattern: str,
         extra_args: Optional[List[str]] = None,
-    ) -> TestResult:
+    ) -> LoopTestResult:
         """Run pytest with given pattern."""
         args = [
             sys.executable, "-m", "pytest",
@@ -104,7 +104,7 @@ class TestRunner:
         name: str,
         output: str,
         duration: float,
-    ) -> TestResult:
+    ) -> LoopTestResult:
         """Parse pytest output."""
         passed = 0
         failed = 0
@@ -139,7 +139,7 @@ class TestRunner:
                 if match:
                     errors = int(match.group(1))
         
-        return TestResult(
+        return LoopTestResult(
             name=name,
             passed=passed,
             failed=failed,
@@ -162,7 +162,7 @@ class ThreeLoopRunner:
         self.project_root = project_root
         self.max_iterations = max_iterations
         self.include_e2e = include_e2e
-        self.runner = TestRunner(project_root)
+        self.runner = LoopTestRunner(project_root)
         self.results: List[LoopResult] = []
     
     def run(self) -> Tuple[bool, List[LoopResult]]:

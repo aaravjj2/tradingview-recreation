@@ -42,7 +42,7 @@ const statusIcons: Record<OrderStatus, React.ReactNode> = {
     rejected: <AlertCircle size={14} className="text-red-500" />,
 };
 
- 
+
 export function OrdersTile({ tileId, onClose, onMaximize, isMaximized }: TileProps) {
     // Reserved for future integration: tileId will be used for persistent state
     // onClose, onMaximize, isMaximized are handled by parent TileWrapper
@@ -76,7 +76,7 @@ export function OrdersTile({ tileId, onClose, onMaximize, isMaximized }: TilePro
             </div>
 
             {/* Header */}
-            <div className="grid grid-cols-6 gap-2 px-3 py-2 text-xs text-text-muted border-b border-border">
+            <div className="grid grid-cols-6 gap-2 px-3 py-1 text-xs text-text-muted border-b border-border">
                 <div>Symbol</div>
                 <div>Side</div>
                 <div>Type</div>
@@ -90,17 +90,17 @@ export function OrdersTile({ tileId, onClose, onMaximize, isMaximized }: TilePro
                 {filteredOrders.map(order => (
                     <div
                         key={order.id}
-                        className="grid grid-cols-6 gap-2 px-3 py-2 text-sm hover:bg-element-bg cursor-pointer border-b border-border/50"
+                        className="grid grid-cols-6 gap-2 px-3 py-1 text-sm hover:bg-element-bg cursor-pointer border-b border-border/50"
                     >
                         <div className="font-medium text-text">{order.symbol}</div>
                         <div className={cn(
                             "uppercase text-xs font-semibold",
-                            order.side === 'buy' ? "text-green-500" : "text-red-500"
+                            order.side === 'buy' ? "text-up" : "text-down"
                         )}>
                             {order.side}
                         </div>
                         <div className="text-text-secondary capitalize">{order.type}</div>
-                        <div className="text-right text-text-secondary">
+                        <div className="text-right text-text-secondary tabular-nums">
                             {order.filledQty > 0 ? `${order.filledQty}/${order.quantity}` : order.quantity}
                         </div>
                         <div className="text-right font-mono text-text">

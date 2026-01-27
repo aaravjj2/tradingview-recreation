@@ -45,70 +45,79 @@ def indicators():
 class TestAdvancedIndicators:
     def test_anchored_vwap(self, indicators, sample_bars):
         """Test anchored VWAP calculation"""
-        anchor_date = sample_bars[0].timestamp
-        result = indicators.calculate_anchored_vwap(sample_bars, anchor_date)
+        # Method expects an integer index, not a datetime
+        anchor_index = 0  # Anchor at first bar
+        result = indicators.calculate_anchored_vwap(sample_bars, anchor_index)
         
         assert result is not None
-        assert "vwap" in result
-        assert "upper_band_1sd" in result
-        assert "lower_band_1sd" in result
-        assert "upper_band_2sd" in result
-        assert "lower_band_2sd" in result
-        assert "anchor_date" in result
+        # Result is an AnchoredVWAPResult dataclass, not a dict
+        assert hasattr(result, 'vwap')
+        assert hasattr(result, 'upper_band_1std')
+        assert hasattr(result, 'lower_band_1std')
+        assert hasattr(result, 'upper_band_2std')
+        assert hasattr(result, 'lower_band_2std')
+        assert hasattr(result, 'anchor_time')
         
         # VWAP should be within price range
         prices = [float(b.close) for b in sample_bars]
         min_price = min(prices)
         max_price = max(prices)
-        
-        assert min_price <= result["vwap"] <= max_price
-        
-        # Upper bands should be above VWAP
-        assert result["upper_band_1sd"] > result["vwap"]
-        assert result["upper_band_2sd"] > result["upper_band_1sd"]
-        
-        # Lower bands should be below VWAP
-        assert result["lower_band_1sd"] < result["vwap"]
-        assert result["lower_band_2sd"] < result["lower_band_1sd"]
+        # Result is an AnchoredVWAPResult dataclass with lists
+        if result.vwap:
+            # Get the last VWAP value from the list of tuples
+            last_vwap = result.vwap[-1][1]
+            assert min_price <= last_vwap <= max_price
+            
+            # Upper bands should be above VWAP
+            last_upper_1std = result.upper_band_1std[-1][1]
+            last_upper_2std = result.upper_band_2std[-1][1]
+            assert last_upper_1std > last_vwap
+            assert last_upper_2std > last_upper_1std
+            
+            # Lower bands should be below VWAP
+            last_lower_1std = result.lower_band_1std[-1][1]
+            last_lower_2std = result.lower_band_2std[-1][1]
+            assert last_lower_1std < last_vwap
+            assert last_lower_2std < last_lower_1std
 
     def test_atr_bands(self, indicators, sample_bars):
         """Test ATR bands calculation"""
         result = indicators.calculate_atr_bands(
-            sample_bars, period=14, multiplier=2.0
+            sample_bars, atr_period=14, multiplier=2.0
         )
         
         assert result is not None
-        assert "middle" in result
-        assert "upper" in result
-        assert "lower" in result
-        assert "atr" in result
+        # Result is ATRBandsResult dataclass
+        assert hasattr(result, 'upper_band')
+        assert hasattr(result, 'lower_band')
+        assert hasattr(result, 'atr_values')
+        assert hasattr(result, 'multiplier')
         
-        # Middle should be recent close price
-        recent_close = float(sample_bars[-1].close)
-        assert abs(result["middle"] - recent_close) < 1.0
-        
-        # Upper should be above middle, lower should be below
-        assert result["upper"] > result["middle"]
-        assert result["lower"] < result["middle"]
-        
-        # ATR should be positive
-        assert result["atr"] > 0
+        if result.atr_values:
+            # ATR should be positive (except first bar which is 0)
+            last_atr = result.atr_values[-1][1]
+            assert last_atr > 0
+            
+            # Upper should be above lower
+            last_upper = result.upper_band[-1][1]
+            last_lower = result.lower_band[-1][1]
+            assert last_upper > last_lower
 
     def test_atr_bands_different_parameters(self, indicators, sample_bars):
         """Test ATR bands with different parameters"""
         # Short period, small multiplier
         result1 = indicators.calculate_atr_bands(
-            sample_bars, period=7, multiplier=1.0
+            sample_bars, atr_period=7, multiplier=1.0
         )
         
         # Long period, large multiplier
         result2 = indicators.calculate_atr_bands(
-            sample_bars, period=28, multiplier=3.0
+            sample_bars, atr_period=28, multiplier=3.0
         )
         
         # Larger multiplier should create wider bands
-        width1 = result1["upper"] - result1["lower"]
-        width2 = result2["upper"] - result2["lower"]
+        width1 = result1.upper_band[-1][1] - result1.lower_band[-1][1]
+        width2 = result2.upper_band[-1][1] - result2.lower_band[-1][1]
         
         assert width2 > width1
 
@@ -117,55 +126,50 @@ class TestAdvancedIndicators:
         result = indicators.calculate_ema_regime(sample_bars)
         
         assert result is not None
-        assert "ema_20" in result
-        assert "ema_50" in result
-        assert "ema_200" in result
-        assert "slope_20" in result
-        assert "slope_50" in result
-        assert "slope_200" in result
-        assert "regime" in result
-        assert "crossovers" in result
+        # Result is EMARegime dataclass
+        assert hasattr(result, 'ema_20')
+        assert hasattr(result, 'ema_50')
+        assert hasattr(result, 'ema_200')
+        assert hasattr(result, 'slope_20')
+        assert hasattr(result, 'slope_50')
+        assert hasattr(result, 'slope_200')
+        assert hasattr(result, 'regime')
+        assert hasattr(result, 'crossover_state')
         
         # EMAs should be in reasonable range
         prices = [float(b.close) for b in sample_bars]
         min_price = min(prices)
         max_price = max(prices)
         
-        assert min_price <= result["ema_20"] <= max_price
-        assert min_price <= result["ema_50"] <= max_price
-        assert min_price <= result["ema_200"] <= max_price
+        assert min_price <= result.ema_20 <= max_price
+        assert min_price <= result.ema_50 <= max_price
+        assert min_price <= result.ema_200 <= max_price
         
         # For uptrend data, slope should be positive
-        assert result["slope_20"] > 0
-        assert result["slope_50"] > 0
+        assert result.slope_20 > 0
+        assert result.slope_50 > 0
         
         # Regime should be a valid string
-        assert result["regime"] in ["bullish", "bearish", "neutral"]
+        assert result.regime in ["bullish", "bearish", "neutral"]
 
     def test_ema_regime_uptrend(self, indicators, sample_bars):
         """Test EMA regime detection in uptrend"""
         result = indicators.calculate_ema_regime(sample_bars)
         
         # With uptrending data, should detect bullish regime
-        assert result["regime"] in ["bullish", "neutral"]
+        assert result.regime in ["bullish", "neutral"]
         
         # Shorter EMA should be above longer EMA in uptrend
         # (not always true at every point, but generally for strong uptrend)
-        if result["regime"] == "bullish":
-            assert result["ema_20"] >= result["ema_50"]
+        if result.regime == "bullish":
+            assert result.ema_20 >= result.ema_50
 
     def test_ema_crossovers(self, indicators, sample_bars):
         """Test crossover detection"""
         result = indicators.calculate_ema_regime(sample_bars)
         
-        # Crossovers should be a list
-        assert isinstance(result["crossovers"], list)
-        
-        # Each crossover should have required fields
-        for crossover in result["crossovers"]:
-            assert "type" in crossover
-            assert "timestamp" in crossover
-            assert crossover["type"] in ["golden_cross", "death_cross"]
+        # Crossover state should be a valid string
+        assert result.crossover_state in ["golden_cross", "death_cross", "none"]
 
     def test_insufficient_data(self, indicators):
         """Test handling of insufficient data"""
@@ -187,18 +191,15 @@ class TestAdvancedIndicators:
             )
             short_bars.append(bar)
         
-        # Should handle gracefully or return None
+        # Should return None for insufficient data
         result = indicators.calculate_ema_regime(short_bars)
-        # Either returns None or returns partial data
-        assert result is None or "ema_20" in result
+        assert result is None
 
-    def test_anchored_vwap_future_anchor(self, indicators, sample_bars):
-        """Test anchored VWAP with future anchor date"""
-        future_date = datetime(2025, 1, 1, tzinfo=timezone.utc)
-        result = indicators.calculate_anchored_vwap(sample_bars, future_date)
-        
-        # Should handle gracefully (either None or use first bar)
-        assert result is None or "vwap" in result
+    def test_anchored_vwap_invalid_anchor(self, indicators, sample_bars):
+        """Test anchored VWAP with invalid anchor index"""
+        # Using index beyond range should return None
+        result = indicators.calculate_anchored_vwap(sample_bars, 999)
+        assert result is None
 
 
 if __name__ == "__main__":

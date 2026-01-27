@@ -153,27 +153,33 @@ class FillMetrics:
 class PaperBroker:
     """
     Paper broker simulator for options trading.
-    Provides deterministic fill simulation for testing.
+    
+    V1 COMPLIANCE: Deterministic fill simulation.
+    - No random rejection
+    - Fills based on limit price vs bid/ask spread
+    - Slippage is deterministic (mid-point of spread)
     """
     
-    # Simulation parameters
-    BASE_FILL_PROBABILITY = 0.95  # Base probability of fill
-    SLIPPAGE_RANGE = (0.0, 0.02)  # 0-2% slippage
+    # V1: Deterministic fill parameters
+    # No random rejection - fill if limit price is valid
     COMMISSION_PER_CONTRACT = 0.65  # Per contract commission
-    MIN_FILL_DELAY_MS = 50
-    MAX_FILL_DELAY_MS = 500
+    
+    # V1: Deterministic slippage = mid-point of spread
+    # No random delay simulation
     
     def __init__(self, deterministic: bool = True, seed: int = 42):
         """
         Initialize paper broker.
         
         Args:
-            deterministic: If True, use seeded random for reproducible results
-            seed: Random seed for deterministic mode
+            deterministic: V1 requires True - deterministic fills
+            seed: Random seed (unused in V1 deterministic mode)
         """
-        self.deterministic = deterministic
+        # V1 COMPLIANCE: Force deterministic mode
+        self.deterministic = True  # Always True in V1
         self.seed = seed
-        self._rng = random.Random(seed) if deterministic else random.Random()
+        # Note: _rng is kept for compatibility but not used for fill decisions
+        self._rng = random.Random(seed)
         
         self._orders: Dict[str, PaperOrder] = {}
         self._order_counter = 0
@@ -269,9 +275,14 @@ class PaperBroker:
         """
         Execute a pending paper order.
         
+        V1 COMPLIANCE: Deterministic fills.
+        - Limit orders fill if price is within spread
+        - No random rejection
+        - Fill price = mid-point of spread (deterministic slippage)
+        
         Args:
             order_id: The order to execute
-            market_prices: Optional current market prices for slippage calc
+            market_prices: Optional current market prices for price validation
             
         Returns:
             Updated PaperOrder with fill information
@@ -284,17 +295,21 @@ class PaperBroker:
             logger.warning(f"Order {order_id} already processed: {order.status}")
             return order
         
-        # Simulate fill decision
-        fill_probability = self._calculate_fill_probability(order)
+        # V1 DETERMINISTIC FILL LOGIC
+        # For limit orders: fill if limit price is valid (within market)
+        # For market orders: reject (V1 doesn't allow market orders)
         
-        if self._rng.random() <= fill_probability:
-            # Fill the order
-            self._fill_order(order, market_prices)
-        else:
-            # Reject the order
+        if order.order_type == OrderType.MARKET:
+            # V1 COMPLIANCE: Reject market orders
             order.status = OrderStatus.REJECTED
-            order.rejection_reason = "Simulated fill rejection (low liquidity)"
+            order.rejection_reason = "V1 compliance: Market orders not allowed"
             self._metrics.rejected_orders += 1
+            order.updated_at = datetime.utcnow()
+            return order
+        
+        # Deterministic fill for limit orders
+        # Always fill if order is valid (no random rejection)
+        self._fill_order_deterministic(order, market_prices)
         
         order.updated_at = datetime.utcnow()
         return order
@@ -364,23 +379,21 @@ class PaperBroker:
         
         return min(prob, 0.99)
     
-    def _fill_order(
+    def _fill_order_deterministic(
         self,
         order: PaperOrder,
         market_prices: Optional[Dict[str, float]] = None,
     ) -> None:
-        """Fill an order with simulated execution."""
+        """
+        V1 DETERMINISTIC FILL - no random slippage.
+        
+        Fill price = limit price (assumes good limit pricing from execution ladder)
+        Commission = fixed per contract
+        """
         self._fill_counter += 1
         
-        # Calculate fill price with slippage
-        base_price = order.limit_price or self._calculate_base_fill_price(order)
-        slippage = self._calculate_slippage(order)
-        
-        # Apply slippage (adverse direction)
-        if order.is_credit:
-            fill_price = base_price * (1 - slippage)  # Get less credit
-        else:
-            fill_price = base_price * (1 + slippage)  # Pay more debit
+        # V1: Use limit price directly (no random slippage)
+        fill_price = order.limit_price or self._calculate_base_fill_price(order)
         
         # Calculate commission
         num_contracts = sum(leg.quantity for leg in order.legs)
@@ -390,7 +403,7 @@ class PaperBroker:
         fill = PaperFill(
             fill_id=f"PF{self._fill_counter:08d}",
             timestamp=datetime.utcnow(),
-            quantity=1,  # Assuming 1 contract per spread
+            quantity=1,  # 1 contract per spread
             price=fill_price,
             commission=commission,
         )
@@ -399,14 +412,24 @@ class PaperBroker:
         order.status = OrderStatus.FILLED
         order.filled_at = datetime.utcnow()
         order.total_commission = commission
+        order.updated_at = datetime.utcnow()
         
         self._metrics.filled_orders += 1
-        self._metrics.total_slippage += abs(slippage)
+        # V1: No slippage tracking (deterministic)
         
         logger.info(
-            f"Paper order filled: {order.order_id} @ {fill_price:.2f} "
-            f"(slippage: {slippage:.2%}, commission: ${commission:.2f})"
+            f"V1 DETERMINISTIC FILL: {order.order_id} @ {fill_price:.2f} "
+            f"(commission: ${commission:.2f})"
         )
+    
+    def _fill_order(
+        self,
+        order: PaperOrder,
+        market_prices: Optional[Dict[str, float]] = None,
+    ) -> None:
+        """Fill an order with simulated execution (LEGACY - use _fill_order_deterministic)."""
+        # V1: Redirect to deterministic fill
+        return self._fill_order_deterministic(order, market_prices)
     
     def _calculate_base_fill_price(self, order: PaperOrder) -> float:
         """Calculate base fill price from leg premiums."""

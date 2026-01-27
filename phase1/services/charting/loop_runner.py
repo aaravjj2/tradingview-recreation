@@ -23,8 +23,8 @@ class LoopPhase(Enum):
     E2E = auto()            # Phase 4: End-to-end Playwright
 
 
-class TestStatus(Enum):
-    """Status of a test run."""
+class LoopTestStatus(Enum):
+    """Status of a test run (renamed to avoid pytest collection)."""
     
     PENDING = auto()
     RUNNING = auto()
@@ -35,11 +35,11 @@ class TestStatus(Enum):
 
 
 @dataclass
-class TestResult:
-    """Result of a single test."""
+class LoopSingleTestResult:
+    """Result of a single test (renamed to avoid pytest collection)."""
     
     name: str
-    status: TestStatus
+    status: LoopTestStatus
     phase: LoopPhase
     duration_ms: float = 0.0
     error_message: str = ""
@@ -72,10 +72,10 @@ class LoopIteration:
     start_time: float
     end_time: float = 0.0
     
-    unit_results: List[TestResult] = field(default_factory=list)
-    integration_results: List[TestResult] = field(default_factory=list)
-    visual_results: List[TestResult] = field(default_factory=list)
-    e2e_results: List[TestResult] = field(default_factory=list)
+    unit_results: List[LoopSingleTestResult] = field(default_factory=list)
+    integration_results: List[LoopSingleTestResult] = field(default_factory=list)
+    visual_results: List[LoopSingleTestResult] = field(default_factory=list)
+    e2e_results: List[LoopSingleTestResult] = field(default_factory=list)
     
     fixes_applied: List[str] = field(default_factory=list)
     
@@ -105,7 +105,7 @@ class LoopIteration:
             self.visual_results +
             self.e2e_results
         )
-        return sum(1 for r in all_results if r.status == TestStatus.PASSED)
+        return sum(1 for r in all_results if r.status == LoopTestStatus.PASSED)
     
     @property
     def failed_tests(self) -> int:
@@ -116,7 +116,7 @@ class LoopIteration:
             self.visual_results +
             self.e2e_results
         )
-        return sum(1 for r in all_results if r.status == TestStatus.FAILED)
+        return sum(1 for r in all_results if r.status == LoopTestStatus.FAILED)
     
     @property
     def skipped_tests(self) -> int:
@@ -127,7 +127,7 @@ class LoopIteration:
             self.visual_results +
             self.e2e_results
         )
-        return sum(1 for r in all_results if r.status == TestStatus.SKIPPED)
+        return sum(1 for r in all_results if r.status == LoopTestStatus.SKIPPED)
     
     @property
     def is_successful(self) -> bool:
@@ -216,9 +216,9 @@ class LoopState:
         }
 
 
-class TestDiscovery:
+class LoopTestDiscovery:
     """
-    Discovers tests to run.
+    Discovers tests to run (renamed to avoid pytest collection).
     
     Scans directories and collects test files/functions.
     """
@@ -351,8 +351,8 @@ class LoopReporter:
 
 
 # Type aliases for test runners
-TestRunner = Callable[[List[str]], List[TestResult]]
-FixFunction = Callable[[List[TestResult]], List[str]]
+LoopTestRunner = Callable[[List[str]], List[LoopSingleTestResult]]
+FixFunction = Callable[[List[LoopSingleTestResult]], List[str]]
 
 
 class ThreeLoopRunner:
@@ -365,15 +365,15 @@ class ThreeLoopRunner:
     def __init__(
         self,
         config: LoopConfig,
-        unit_runner: Optional[TestRunner] = None,
-        integration_runner: Optional[TestRunner] = None,
-        visual_runner: Optional[TestRunner] = None,
-        e2e_runner: Optional[TestRunner] = None,
+        unit_runner: Optional[LoopTestRunner] = None,
+        integration_runner: Optional[LoopTestRunner] = None,
+        visual_runner: Optional[LoopTestRunner] = None,
+        e2e_runner: Optional[LoopTestRunner] = None,
         fix_function: Optional[FixFunction] = None,
     ):
         self._config = config
         self._state = LoopState()
-        self._discovery = TestDiscovery(config.test_dir)
+        self._discovery = LoopTestDiscovery(config.test_dir)
         self._reporter = LoopReporter(config.output_dir)
         
         # Test runners
@@ -425,25 +425,25 @@ class ThreeLoopRunner:
         for listener in self._completion_listeners:
             listener(self._state)
     
-    def _default_test_runner(self, tests: List[str]) -> List[TestResult]:
+    def _default_test_runner(self, tests: List[str]) -> List[LoopSingleTestResult]:
         """Default test runner (placeholder)."""
         results = []
         for test in tests:
-            results.append(TestResult(
+            results.append(LoopSingleTestResult(
                 name=test,
-                status=TestStatus.PASSED,
+                status=LoopTestStatus.PASSED,
                 phase=LoopPhase.UNIT_TEST,
                 duration_ms=10.0,
             ))
         return results
     
-    def _default_visual_runner(self, tests: List[str]) -> List[TestResult]:
+    def _default_visual_runner(self, tests: List[str]) -> List[LoopSingleTestResult]:
         """Default visual test runner (placeholder)."""
         results = []
         for test in tests:
-            results.append(TestResult(
+            results.append(LoopSingleTestResult(
                 name=test,
-                status=TestStatus.PASSED,
+                status=LoopTestStatus.PASSED,
                 phase=LoopPhase.VISUAL_PARITY,
                 duration_ms=50.0,
             ))
@@ -477,7 +477,7 @@ class ThreeLoopRunner:
                             iteration.visual_results +
                             iteration.e2e_results
                         )
-                        if r.status == TestStatus.FAILED
+                        if r.status == LoopTestStatus.FAILED
                     ]
                     
                     fixes = self._fix_function(all_failed)
