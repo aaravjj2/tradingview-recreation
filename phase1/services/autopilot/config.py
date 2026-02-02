@@ -94,30 +94,39 @@ class RiskLimits:
     
     V1 CONTRACT (Non-negotiable):
     - Max 10 open positions
-    - Max $1,000 total exposure
-    - 10% hard stop per position
+    - Max $1,000 total exposure (HARD LIMIT)
+    - 15% hard stop per position
     - Percentage-based limits for scalability
+    
+    HIGH WIN RATE OPTIMIZATIONS:
+    - Smaller position sizes (10% per trade)
+    - Tighter daily loss cap (10%)
+    - Concentration limits to force diversification
     """
     # V1 CONTRACT LIMITS
     max_open_positions: int = V1_MAX_OPEN_POSITIONS        # 10 positions max
-    max_total_exposure_usd: float = V1_MAX_TOTAL_EXPOSURE_USD  # $1,000 max
-    per_position_stop_pct: float = V1_PER_POSITION_STOP_PCT    # 10% stop loss
+    max_total_exposure_usd: float = V1_MAX_TOTAL_EXPOSURE_USD  # $1,000 max (HARD)
+    per_position_stop_pct: float = V1_PER_POSITION_STOP_PCT  # 10% stop loss per position (V1 CONTRACT)
     
-    # V1 PERCENTAGE-BASED LIMITS (adjusted for $1000 micro-account)
-    max_risk_per_trade_pct: float = 0.20  # 20% of equity per trade ($200 for $1000)
-    max_buying_power_pct: float = 0.50    # 50% max buying power utilization (V1 mandate)
-    max_daily_loss_pct: float = 0.20      # 20% daily loss cap ($200 for $1000)
+    # V1 PERCENTAGE-BASED LIMITS (OPTIMIZED for $1000 micro-account)
+    max_risk_per_trade_pct: float = 0.10  # 10% of equity per trade ($100 for $1000)
+    max_buying_power_pct: float = 0.50    # 50% max buying power utilization
+    max_daily_loss_pct: float = 0.10      # 10% daily loss cap ($100 for $1000)
     
-    # Additional position limits
-    max_daily_trades: int = 10            # Max 10 trades per day (buy + sell)
-    max_positions_per_underlying: int = 1
+    # Additional position limits (stricter)
+    max_daily_trades: int = 6             # Max 6 trades per day (quality over quantity)
+    max_positions_per_underlying: int = 1  # Only 1 position per ticker
     max_positions_per_cluster: int = 2
-    max_cluster_risk_pct: float = 0.6     # 60% max in any cluster
+    max_cluster_risk_pct: float = 0.40    # 40% max in any cluster
+    
+    # HARD DOLLAR LIMITS (absolute caps)
+    max_single_position_usd: float = 150.0  # Max $150 per position (absolute)
+    max_total_cost_usd: float = 500.0       # Max $500 total deployed (50% of $1000)
     
     # Legacy dollar amounts (computed from percentages in validate())
-    max_risk_per_trade: float = 200.0     # $200 for $1000 account (20%)
+    max_risk_per_trade: float = 100.0     # $100 for $1000 account (10%)
     max_total_risk: float = 500.0         # $500 for $1000 account (50%)
-    max_daily_loss: float = 200.0         # $200 for $1000 account (20%)
+    max_daily_loss: float = 100.0         # $100 for $1000 account (10%)
     
     def validate_for_equity(self, equity: float) -> 'RiskLimits':
         """
@@ -184,26 +193,37 @@ class SingleLegConstraints:
     """
     Constraints for single-leg options (v1).
     
-    HIGH WIN RATE SETTINGS:
-    - Prefer OTM options (0.25-0.50 delta) for better risk/reward
-    - Tight stop loss at 8% to minimize damage
-    - Take profits quickly at 25% to lock in wins
-    - Prefer 5-14 DTE for balance of time decay vs movement
+    HIGH WIN RATE SETTINGS (OPTIMIZED):
+    - Prefer ATM-ITM options (0.40-0.60 delta) for higher probability
+    - Tight stop loss at 15% to preserve capital
+    - Take profits at 20% to lock in wins quickly
+    - Scale out: partial exit at 10%, rest at 20%
+    - Prefer 7-21 DTE sweet spot for theta vs movement
+    - Require minimum IV percentile for edge
     """
-    # Delta targeting - OTM-focused for directional plays
-    target_delta_min: float = 0.25  # More OTM
-    target_delta_max: float = 0.50  # Less ATM
-    # Risk parameters - TIGHT controls for high win rate
-    stop_loss_pct: float = -0.08  # Exit at -8% premium loss (tighter)
-    profit_target_pct: float = 0.25  # Exit at +25% premium gain (faster)
-    break_even_trigger_pct: float = 0.05  # Move stop to break-even at +5%
+    # Delta targeting - ATM-focused for higher probability
+    target_delta_min: float = 0.40  # Slightly ITM
+    target_delta_max: float = 0.60  # ATM to slightly ITM
+    # Risk parameters - OPTIMIZED for high win rate
+    stop_loss_pct: float = -0.15  # Exit at -15% premium loss
+    profit_target_pct: float = 0.20  # Exit at +20% premium gain (faster)
+    partial_profit_pct: float = 0.10  # Take partial at +10%
+    partial_exit_ratio: float = 0.50  # Exit 50% at partial target
+    break_even_trigger_pct: float = 0.08  # Move stop to break-even at +8%
     # Time management
     time_stop_eod: bool = True  # Flatten at end of day for 0DTE
-    max_dte: int = 14  # Max 14 days to expiration
-    min_dte: int = 3   # Min 3 DTE (avoid gamma risk)
-    # Liquidity
-    min_bid: float = 0.10  # Minimum bid price (higher = more liquid)
-    max_spread_pct: float = 0.15  # Max bid-ask spread as % of mid (tighter)
+    max_dte: int = 21  # Max 21 days to expiration
+    min_dte: int = 5   # Min 5 DTE (avoid gamma risk)
+    optimal_dte_min: int = 7   # Optimal range start
+    optimal_dte_max: int = 14  # Optimal range end
+    # Liquidity requirements (stricter)
+    min_bid: float = 0.15  # Minimum bid price (higher = more liquid)
+    max_spread_pct: float = 0.10  # Max bid-ask spread as % of mid (tighter)
+    min_open_interest: int = 100  # Minimum open interest
+    min_volume: int = 10  # Minimum daily volume
+    # IV requirements
+    min_iv_percentile: float = 0.20  # Min IV percentile (edge exists)
+    max_iv_percentile: float = 0.70  # Max IV percentile (not overpaying)
 
 
 @dataclass

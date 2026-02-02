@@ -107,7 +107,7 @@ def test_v1_exit_monitor():
     assert triggered[0].trigger == ExitTrigger.HARD_STOP
     logger.info("✅ -11% loss: HARD STOP TRIGGERED (expected)")
     
-    # Test 4: +50% profit target
+    # Test 4: +50% profit target - now triggers BOTH partial profit (+10%) and profit target (+20%)
     monitor.register_position(
         position_id="pos-v1-002",
         entry_price=1.00,
@@ -116,8 +116,10 @@ def test_v1_exit_monitor():
     )
     signals = monitor.check_position("pos-v1-002", current_price=1.50)
     triggered = [s for s in signals if s.triggered]
-    assert len(triggered) == 1, f"Expected profit target trigger at +50%"
-    assert triggered[0].trigger == ExitTrigger.PROFIT_TARGET
+    # At +50%, both PARTIAL_PROFIT (threshold +10%) and PROFIT_TARGET (threshold +20%) trigger
+    assert len(triggered) >= 1, f"Expected at least profit target trigger at +50%"
+    profit_target_triggered = any(s.trigger == ExitTrigger.PROFIT_TARGET for s in triggered)
+    assert profit_target_triggered, "PROFIT_TARGET should trigger at +50%"
     logger.info("✅ +50% profit: PROFIT TARGET TRIGGERED (expected)")
     
     # Test 5: Time stop (DTE <= 1)

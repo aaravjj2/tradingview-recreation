@@ -42,19 +42,22 @@ class TestAutopilotConfig:
         assert len(config.allowed_strategies) == 2  # V1: 2 single-leg only
         
     def test_risk_limits_defaults(self):
-        """Test V1 percentage-based risk limits"""
+        """Test V1 percentage-based risk limits (OPTIMIZED for high win rate)"""
         limits = RiskLimits()
         
-        # V1 COMPLIANCE: Percentage-based limits
-        assert limits.max_risk_per_trade_pct == 0.02  # 2% per-trade
+        # V1 OPTIMIZED: Percentage-based limits for $1000 micro-account
+        assert limits.max_risk_per_trade_pct == 0.10  # 10% per-trade (optimized)
         assert limits.max_buying_power_pct == 0.50    # 50% buying power
-        assert limits.max_daily_loss_pct == 0.10      # 10% daily loss
+        assert limits.max_daily_loss_pct == 0.10      # 10% daily loss (tighter)
         # V1 CONTRACT: Max 10 positions
         assert limits.max_open_positions == 10        # V1: Max 10 positions
         # V1 CONTRACT: Max $1,000 exposure
         assert limits.max_total_exposure_usd == 1000.0
-        # V1 CONTRACT: 10% hard stop
+        # V1 CONTRACT: 10% hard stop (V1 contract specifies 10%)
         assert limits.per_position_stop_pct == 0.10
+        # V1 NEW: Hard dollar limits
+        assert limits.max_single_position_usd == 150.0  # Max $150 per position
+        assert limits.max_total_cost_usd == 500.0       # Max $500 deployed
         
     def test_config_universe(self):
         """Test universe configuration"""

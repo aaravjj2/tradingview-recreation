@@ -13,7 +13,10 @@ function App() {
       document.body.classList.add('e2e-mode');
 
       // Force virtual clock to ensure time is deterministic
-      ClockClient.setMode('virtual', 1672531200000).catch(console.error); // 2023-01-01
+      // Use injected time from helpers.ts or fallback to Jan 15 2025 (matching CSV)
+      // @ts-ignore
+      const timestamp = window.__E2E_FROZEN_TIME__ || 1736942400000;
+      ClockClient.setMode('virtual', timestamp).catch(console.error);
 
       // Fast-fail WebSockets for E2E speed
       WebSocketClient.overrideThresholds(2000, 3000);

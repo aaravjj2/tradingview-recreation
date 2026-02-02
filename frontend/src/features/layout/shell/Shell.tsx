@@ -13,7 +13,7 @@ import { AlertsView } from '../views/AlertsView';
 import { EnhancedPortfolioView } from '../../portfolio/EnhancedPortfolioView';
 import { ReportsView } from '../views/ReportsView';
 import { SettingsView } from '../views/SettingsView';
-import { CommandCenterView } from '../views/CommandCenterView';
+import { EnhancedCommandCenterView } from '../views/EnhancedCommandCenterView';
 import { AutomationView } from '../views/AutomationView';
 import { IncidentsView } from '../views/IncidentsView';
 import { OptionsView } from '../views/OptionsView';
@@ -153,7 +153,7 @@ export function Shell() {
                     </PanelGroup>
                 );
             case 'dashboard':
-                return <CommandCenterView />;
+                return <EnhancedCommandCenterView />;
             case 'options':
                 return <OptionsView />;
             case 'autopilot':
@@ -185,7 +185,7 @@ export function Shell() {
 
     return (
         <ToastProvider>
-            <div className="h-screen w-screen flex flex-col bg-background text-text overflow-hidden font-sans selection:bg-brand/30">
+            <div className="h-screen w-screen flex flex-col bg-background text-text overflow-hidden font-sans selection:bg-brand/30" data-testid="app-shell">
                 <TopAppBarEnhanced />
 
                 <div className="flex-1 flex overflow-hidden">

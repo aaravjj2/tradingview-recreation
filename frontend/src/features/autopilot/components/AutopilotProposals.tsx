@@ -79,6 +79,34 @@ const CandidateCard: React.FC<CandidateCardProps> = ({ candidate }) => {
         </div>
       </div>
 
+
+      {/* TTS Button */}
+      {
+        candidate.rationale && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              // Send to TTS
+              fetch('http://localhost:8000/api/v1/tts/speak', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: `Symbol ${candidate.symbol}. ${candidate.rationale}` })
+              })
+                .then(res => res.blob())
+                .then(blob => {
+                  const url = URL.createObjectURL(blob);
+                  import('../../tts/AudioQueue').then(m => m.audioQueue.enqueue(url));
+                })
+                .catch(err => console.error("TTS Failed", err));
+            }}
+            className="mb-3 px-2 py-1 text-xs bg-brand/20 hover:bg-brand/30 text-brand rounded flex items-center gap-1 transition-colors w-full justify-center"
+            title="Read Rationale"
+          >
+            <span>🔊</span> Speak Rationale
+          </button>
+        )
+      }
+
       {/* Risk/Reward */}
       <div className="grid grid-cols-3 gap-2 mb-3 text-center">
         <div>
@@ -116,17 +144,21 @@ const CandidateCard: React.FC<CandidateCardProps> = ({ candidate }) => {
       </div>
 
       {/* Selection/Rejection reason */}
-      {candidate.status === 'selected' && candidate.selection_reason && (
-        <div className="mt-2 p-2 bg-green-900/30 rounded text-xs text-green-300">
-          ✓ {candidate.selection_reason}
-        </div>
-      )}
-      {candidate.status === 'rejected' && candidate.rejection_reasons.length > 0 && (
-        <div className="mt-2 p-2 bg-red-900/30 rounded text-xs text-red-300">
-          ✗ {candidate.rejection_reasons.join(', ')}
-        </div>
-      )}
-    </div>
+      {
+        candidate.status === 'selected' && candidate.selection_reason && (
+          <div className="mt-2 p-2 bg-green-900/30 rounded text-xs text-green-300">
+            ✓ {candidate.selection_reason}
+          </div>
+        )
+      }
+      {
+        candidate.status === 'rejected' && candidate.rejection_reasons.length > 0 && (
+          <div className="mt-2 p-2 bg-red-900/30 rounded text-xs text-red-300">
+            ✗ {candidate.rejection_reasons.join(', ')}
+          </div>
+        )
+      }
+    </div >
   );
 };
 
@@ -145,7 +177,7 @@ const TemplateSummary: React.FC<TemplateSummaryProps> = ({ byTemplate }) => {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {Object.entries(byTemplate).map(([template, count]) => (
+      {Object.entries(byTemplate ?? {}).map(([template, count]) => (
         <div
           key={template}
           className="px-3 py-1 bg-gray-700 rounded-full text-sm"
@@ -262,7 +294,7 @@ export const AutopilotProposals: React.FC = () => {
         <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
           <h3 className="text-gray-400 text-sm">Selection Method</h3>
           <p className="text-lg font-semibold text-blue-400 capitalize">
-            {proposals.selection_method.replace('_', ' ')}
+            {(proposals.selection_method ?? 'unknown').replace('_', ' ')}
           </p>
         </div>
       </div>
@@ -293,11 +325,10 @@ export const AutopilotProposals: React.FC = () => {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-t font-medium transition-colors ${
-                  filter === f
-                    ? 'bg-gray-700 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
+                className={`px-4 py-2 rounded-t font-medium transition-colors ${filter === f
+                  ? 'bg-gray-700 text-white'
+                  : 'text-gray-400 hover:text-white'
+                  }`}
               >
                 {f === 'all' ? 'All Candidates' : f === 'selected' ? 'Selected' : 'Rejected'}
               </button>

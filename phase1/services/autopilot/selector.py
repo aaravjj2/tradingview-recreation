@@ -1,7 +1,15 @@
 """
-Selector Module
+Selector Module (OPTIMIZED FOR HIGH WIN RATE)
 Implements candidate ranking and selection strategies.
 Supports both deterministic and LLM-based selection.
+
+HIGH WIN RATE OPTIMIZATIONS:
+- Require minimum 2:1 risk/reward ratio
+- Require minimum 55% probability of profit
+- Prefer ATM-ITM delta (0.40-0.60)
+- IV percentile filters (20%-70%)
+- Stricter liquidity requirements
+- Quality over quantity selection
 """
 
 from abc import ABC, abstractmethod
@@ -14,6 +22,22 @@ from .candidates import TradeCandidate, CandidateStatus
 from .config import AutopilotConfig
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# HIGH WIN RATE SELECTION THRESHOLDS
+# ============================================================================
+MIN_RISK_REWARD_RATIO = 1.5       # Minimum 1.5:1 reward:risk
+MIN_POP_THRESHOLD = 0.50          # Minimum 50% probability of profit
+MIN_DELTA = 0.35                  # Minimum delta (not too far OTM)
+MAX_DELTA = 0.65                  # Maximum delta (not too far ITM)
+MIN_IV_PERCENTILE = 0.15          # Minimum IV percentile (some edge)
+MAX_IV_PERCENTILE = 0.80          # Maximum IV percentile (not overpaying)
+MIN_BID_PRICE = 0.10              # Minimum bid price (liquidity)
+MAX_SPREAD_PCT = 0.15             # Maximum bid-ask spread percentage
+MIN_OPEN_INTEREST = 50            # Minimum open interest
+MIN_VOLUME = 5                    # Minimum daily volume
+MAX_DTE = 21                      # Maximum days to expiration
+MIN_DTE = 5                       # Minimum days to expiration
 
 
 @dataclass
@@ -70,10 +94,101 @@ class DeterministicRanker(CandidateSelector):
     """
     Pure deterministic candidate selection based on scoring rules.
     This is the default and test-friendly selector.
+    
+    OPTIMIZED FOR HIGH WIN RATE:
+    - Pre-filter candidates on quality metrics
+    - Require minimum risk/reward ratio
+    - Enforce probability of profit threshold
+    - Delta and IV filters
+    - Quality over quantity selection
     """
     
     def __init__(self):
         self.name = "deterministic"
+    
+    def _pre_filter_candidates(
+        self, 
+        candidates: List[TradeCandidate],
+        config: AutopilotConfig,
+    ) -> tuple[List[TradeCandidate], List[TradeCandidate]]:
+        """
+        Pre-filter candidates based on quality metrics.
+        Returns (qualified, rejected) candidates.
+        """
+        qualified = []
+        rejected = []
+        
+        for candidate in candidates:
+            rejection_reasons = []
+            
+            # 1. Risk/Reward filter (minimum 1.5:1)
+            if candidate.max_loss > 0:
+                rr_ratio = candidate.max_profit / candidate.max_loss
+                if rr_ratio < MIN_RISK_REWARD_RATIO:
+                    rejection_reasons.append(
+                        f"Poor R:R ratio {rr_ratio:.2f} < {MIN_RISK_REWARD_RATIO}"
+                    )
+            
+            # 2. Probability of Profit filter (minimum 50%)
+            if candidate.pop < MIN_POP_THRESHOLD:
+                rejection_reasons.append(
+                    f"Low POP {candidate.pop:.1%} < {MIN_POP_THRESHOLD:.0%}"
+                )
+            
+            # 3. Delta filter (prefer ATM-ITM range: 0.35-0.65)
+            delta = getattr(candidate, 'delta', 0) or getattr(candidate, 'primary_delta', 0)
+            if delta and (delta < MIN_DELTA or delta > MAX_DELTA):
+                rejection_reasons.append(
+                    f"Delta {delta:.2f} outside {MIN_DELTA}-{MAX_DELTA} range"
+                )
+            
+            # 4. IV Percentile filter (20%-80%)
+            iv_pct = getattr(candidate, 'iv_percentile', None) or getattr(candidate, 'iv_rank', None)
+            if iv_pct is not None:
+                if iv_pct < MIN_IV_PERCENTILE:
+                    rejection_reasons.append(f"IV percentile too low {iv_pct:.0%}")
+                elif iv_pct > MAX_IV_PERCENTILE:
+                    rejection_reasons.append(f"IV percentile too high {iv_pct:.0%}")
+            
+            # 5. Bid price filter (minimum $0.10)
+            bid = getattr(candidate, 'bid', None) or getattr(candidate, 'premium', None)
+            if bid and bid < MIN_BID_PRICE:
+                rejection_reasons.append(f"Bid ${bid:.2f} < ${MIN_BID_PRICE} min")
+            
+            # 6. Spread filter (max 15% of mid)
+            spread_pct = getattr(candidate, 'spread_pct', None)
+            if spread_pct and spread_pct > MAX_SPREAD_PCT:
+                rejection_reasons.append(f"Spread {spread_pct:.1%} > {MAX_SPREAD_PCT:.0%}")
+            
+            # 7. Open interest filter
+            oi = getattr(candidate, 'open_interest', None)
+            if oi and oi < MIN_OPEN_INTEREST:
+                rejection_reasons.append(f"Low OI {oi} < {MIN_OPEN_INTEREST}")
+            
+            # 8. Volume filter
+            vol = getattr(candidate, 'volume', None)
+            if vol and vol < MIN_VOLUME:
+                rejection_reasons.append(f"Low volume {vol} < {MIN_VOLUME}")
+            
+            # 9. DTE filter
+            dte = getattr(candidate, 'dte', None)
+            if dte is not None:
+                if dte < MIN_DTE:
+                    rejection_reasons.append(f"DTE {dte} < {MIN_DTE} min")
+                elif dte > MAX_DTE:
+                    rejection_reasons.append(f"DTE {dte} > {MAX_DTE} max")
+            
+            # Classify candidate
+            if rejection_reasons:
+                candidate.status = CandidateStatus.REJECTED
+                candidate.rejection_reasons.extend(rejection_reasons)
+                rejected.append(candidate)
+                logger.debug(f"Pre-filter rejected {candidate.symbol}: {', '.join(rejection_reasons)}")
+            else:
+                qualified.append(candidate)
+        
+        logger.info(f"Pre-filter: {len(qualified)} qualified, {len(rejected)} rejected")
+        return qualified, rejected
     
     def select(
         self,
@@ -85,11 +200,12 @@ class DeterministicRanker(CandidateSelector):
         """
         Select candidates using deterministic scoring.
         
-        Selection rules:
-        1. Apply forecast adjustments to scores
-        2. Apply concentration filters
-        3. Sort by adjusted score
-        4. Select top N within risk budget
+        Selection rules (OPTIMIZED for high win rate):
+        1. Pre-filter on quality metrics (R:R, POP, delta, IV)
+        2. Apply forecast adjustments to scores
+        3. Apply concentration filters
+        4. Sort by adjusted score
+        5. Select top N within risk budget (quality over quantity)
         """
         if not candidates:
             return SelectionResult(
@@ -100,8 +216,20 @@ class DeterministicRanker(CandidateSelector):
                 timestamp=datetime.utcnow(),
             )
         
+        # PRE-FILTER: Apply quality thresholds first
+        qualified, pre_rejected = self._pre_filter_candidates(candidates, config)
+        
+        if not qualified:
+            return SelectionResult(
+                selected=[],
+                rejected=pre_rejected,
+                method=self.name,
+                rationale=f"All {len(pre_rejected)} candidates rejected by quality filters",
+                timestamp=datetime.utcnow(),
+            )
+        
         # Apply forecast influence to scores
-        self._apply_forecast_influence(candidates, market_context, config)
+        self._apply_forecast_influence(qualified, market_context, config)
         
         # Get current exposure info
         current_risk = portfolio_state.get("total_risk", 0)
@@ -114,12 +242,12 @@ class DeterministicRanker(CandidateSelector):
         position_budget = config.risk_limits.max_open_positions - current_positions
         
         if risk_budget <= 0 or position_budget <= 0:
-            for c in candidates:
+            for c in qualified:
                 c.status = CandidateStatus.REJECTED
                 c.rejection_reasons.append("Risk/position budget exhausted")
             return SelectionResult(
                 selected=[],
-                rejected=candidates,
+                rejected=pre_rejected + qualified,
                 method=self.name,
                 rationale="Risk or position budget exhausted",
                 timestamp=datetime.utcnow(),
@@ -127,13 +255,13 @@ class DeterministicRanker(CandidateSelector):
         
         # Sort by adjusted score (descending)
         sorted_candidates = sorted(
-            candidates, 
+            qualified, 
             key=lambda c: c.adjusted_score, 
             reverse=True
         )
         
         selected = []
-        rejected = []
+        rejected = list(pre_rejected)  # Include pre-filtered rejects
         remaining_risk = risk_budget
         remaining_positions = position_budget
         

@@ -85,10 +85,11 @@ class TestV1ExecutionContract:
             "qty": 1,
         }
         
+        # Use prices that result in < $150 position: mid of $1.00-$1.40 = $1.20 * 100 = $120
         result = await contract.execute(
             candidate=candidate,
-            bid=2.00,
-            ask=2.50,
+            bid=1.00,
+            ask=1.40,
             broker_submit_fn=submit,
             broker_check_fn=check,
             broker_cancel_fn=cancel,
@@ -108,10 +109,11 @@ class TestV1ExecutionContract:
             "qty": 1,
         }
         
+        # Use prices that result in < $150 position: mid of $1.00-$1.40 = $1.20 * 100 = $120
         result = await contract.execute(
             candidate=candidate,
-            bid=2.00,
-            ask=2.50,
+            bid=1.00,
+            ask=1.40,
             broker_submit_fn=submit,
             broker_check_fn=check,
             broker_cancel_fn=cancel,
@@ -131,11 +133,11 @@ class TestV1ExecutionContract:
             "qty": 1,
         }
         
-        # Invalid: ask < bid
+        # Invalid: ask < bid (use small values within position limit)
         result = await contract.execute(
             candidate=candidate,
-            bid=3.00,
-            ask=2.00,  # Invalid
+            bid=1.50,
+            ask=1.00,  # Invalid: ask < bid
             broker_submit_fn=submit,
             broker_check_fn=check,
             broker_cancel_fn=cancel,
@@ -160,10 +162,11 @@ class TestV1ExecutionContract:
             "qty": 1,
         }
         
+        # Use prices within $150 limit: mid of $1.00-$1.40 = $1.20 * 100 = $120
         result = await contract.execute(
             candidate=candidate,
-            bid=2.00,
-            ask=2.50,
+            bid=1.00,
+            ask=1.40,
             broker_submit_fn=submit,
             broker_check_fn=check,
             broker_cancel_fn=cancel,
@@ -195,10 +198,11 @@ class TestV1ExecutionContract:
             "qty": 1,
         }
         
+        # Use prices within $150 limit: mid of $1.00-$1.40 = $1.20 * 100 = $120
         result = await contract.execute(
             candidate=candidate,
-            bid=2.00,
-            ask=2.50,
+            bid=1.00,
+            ask=1.40,
             broker_submit_fn=track_submit,
             broker_check_fn=never_fill,
             broker_cancel_fn=cancel,
@@ -223,10 +227,11 @@ class TestV1ExecutionContract:
         
         cancel = AsyncMock(return_value=True)
         
-        bid = 2.00
-        ask = 2.50
+        # Use prices within $150 limit: mid of $1.00-$1.40 = $1.20 * 100 = $120
+        bid = 1.00
+        ask = 1.40
         spread = ask - bid
-        mid = (bid + ask) / 2  # 2.25
+        mid = (bid + ask) / 2  # 1.20
         
         candidate = {
             "symbol": "AAPL",
@@ -304,13 +309,17 @@ class TestV1ExecutionMetrics:
     async def test_metrics_track_fills(self, contract):
         """Metrics should track successful fills."""
         submit = AsyncMock(return_value="ORDER-001")
-        check = AsyncMock(return_value=("filled", 1, 2.30))
+        check = AsyncMock(return_value=("filled", 1, 1.20))
         cancel = AsyncMock(return_value=True)
         
+        # Use prices within $150 limit: mid of $1.00-$1.40 = $1.20 * 100 = $120
         candidate = {"symbol": "AAPL", "template": "long_call", "qty": 1}
         
-        await contract.execute(candidate, 2.00, 2.50, submit, check, cancel)
-        await contract.execute(candidate, 2.00, 2.50, submit, check, cancel)
+        await contract.execute(candidate, 1.00, 1.40, submit, check, cancel)
+        
+        # Need a different symbol for second trade (max 1 per underlying)
+        candidate2 = {"symbol": "MSFT", "template": "long_call", "qty": 1}
+        await contract.execute(candidate2, 1.00, 1.40, submit, check, cancel)
         
         metrics = contract.get_metrics()
         assert metrics["total_executions"] == 2
@@ -321,12 +330,16 @@ class TestV1ExecutionMetrics:
     async def test_metrics_track_rejections(self, contract):
         """Metrics should track rejections."""
         submit = AsyncMock(return_value="ORDER-001")
-        check = AsyncMock(return_value=("filled", 1, 2.30))
+        check = AsyncMock(return_value=("filled", 1, 1.20))
         cancel = AsyncMock(return_value=True)
         
         # This will be rejected (wrong template)
         candidate = {"symbol": "AAPL", "template": "iron_condor", "qty": 1}
-        await contract.execute(candidate, 2.00, 2.50, submit, check, cancel)
+        await contract.execute(candidate, 1.00, 1.40, submit, check, cancel)
+        
+        metrics = contract.get_metrics()
+        assert metrics["rejections"] == 1
+        assert metrics["fills"] == 0
         
         metrics = contract.get_metrics()
         assert metrics["rejections"] == 1

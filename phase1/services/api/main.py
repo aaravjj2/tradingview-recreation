@@ -19,7 +19,7 @@ import structlog
 
 from ..config import get_settings
 from ..persistence import init_database, get_database
-from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast
+from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast, intelligence
 from .websocket import router as ws_router
 from .health_router import router as health_router
 from .verification_routes import router as verification_router
@@ -201,12 +201,18 @@ def create_app() -> FastAPI:
     app.include_router(fundamentals.router, prefix="/api/v1/fundamentals", tags=["fundamentals"])
     app.include_router(automation.router, prefix="/api/v1", tags=["automation"])
     app.include_router(forecast.router, prefix="/api/v1", tags=["forecast"])
+    app.include_router(intelligence.router, prefix="/api/v1", tags=["intelligence"])
     # UNIFIED AUTOPILOT ROUTER - This is the ONLY autopilot API
     app.include_router(unified_autopilot_router, prefix="/api/v1", tags=["autopilot"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])
     from .autopilot_websocket import router as autopilot_ws_router
     app.include_router(autopilot_ws_router, prefix="/ws", tags=["autopilot-websocket"])
+    app.include_router(autopilot_ws_router, prefix="/ws", tags=["autopilot-websocket"])
     app.include_router(verification_router, tags=["verification"])
+    
+    # ElevenLabs TTS
+    from .tts_routes import router as tts_router
+    app.include_router(tts_router, prefix="/api/v1/tts", tags=["tts"])
     
     # Global exception handler
     @app.exception_handler(Exception)

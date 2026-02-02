@@ -12,3 +12,5 @@ export { UniverseEditor } from './UniverseEditor';
 export { IncidentsPanel } from './IncidentsPanel';
 export { RunHistory } from './RunHistory';
 export { V1TerminalPanel } from './V1TerminalPanel';
+export { AdvancedAutopilotPanel } from './AdvancedAutopilotPanel';
+export { AutopilotAgents } from './AutopilotAgents';

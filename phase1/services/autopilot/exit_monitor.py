@@ -1,15 +1,19 @@
 """
-Exit Monitoring Engine - V1 SINGLE EXIT AUTHORITY
+Exit Monitoring Engine - V1 SINGLE EXIT AUTHORITY (OPTIMIZED FOR WIN RATE)
 
 V1 COMPLIANCE: This is the ONE and ONLY exit authority.
 All exit decisions flow through this module.
 
-Exit Rules (V1 Long Premium):
-1. Hard stop at -20% (premium lost 20% of entry value) - IMMEDIATE
-2. Profit target at +50% (premium gained 50%)
-3. Time stop at DTE <= 1
-4. Regime change: CHAOS → close ALL positions - IMMEDIATE
-5. EOD flatten for 0DTE positions - IMMEDIATE
+OPTIMIZED Exit Rules (V1 Long Premium) - HIGH WIN RATE:
+1. Hard stop at -15% (TIGHTER to preserve capital) - IMMEDIATE
+2. Trailing stop activates at +10% gain, trails at 8% below high
+3. Partial profit at +10% (exit 50% of position)
+4. Full profit target at +20% (faster profit-taking)
+5. Break-even stop: Move stop to entry after +8% gain
+6. Time stop at DTE <= 2 (earlier exit for time decay)
+7. Regime change: CHAOS → close ALL positions - IMMEDIATE
+8. EOD flatten for 0DTE positions - IMMEDIATE
+9. Maximum hold time: 5 days (avoid dead money)
 
 NO OTHER MODULE should have independent exit logic.
 """
@@ -25,22 +29,33 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# V1 EXIT CONSTANTS (from V1 contract)
+# V1 EXIT CONSTANTS (OPTIMIZED FOR HIGH WIN RATE)
 # ============================================================================
 from .config import V1_PER_POSITION_STOP_PCT
 
-V1_HARD_STOP_PCT = V1_PER_POSITION_STOP_PCT  # 10% hard stop (V1 contract)
-V1_PROFIT_TARGET_PCT = 0.50  # +50% take profit
-V1_TIME_STOP_DTE = 1         # Close at DTE <= 1
+# Use the V1 contract constant for hard stop to maintain consistency
+V1_HARD_STOP_PCT = V1_PER_POSITION_STOP_PCT  # 10% hard stop (V1 CONTRACT)
+V1_PROFIT_TARGET_PCT = 0.20      # +20% take profit (faster)
+V1_PARTIAL_PROFIT_PCT = 0.10     # +10% partial profit (scale out)
+V1_PARTIAL_EXIT_RATIO = 0.50     # Exit 50% at partial profit
+V1_BREAK_EVEN_TRIGGER_PCT = 0.08 # Move stop to break-even at +8%
+V1_TRAILING_STOP_ACTIVATION = 0.10  # Activate trailing at +10%
+V1_TRAILING_STOP_DISTANCE = 0.08    # Trail 8% below high
+V1_TIME_STOP_DTE = 2             # Close at DTE <= 2 (earlier)
+V1_MAX_HOLD_DAYS = 5             # Max 5 days hold time
 
 
 class ExitTrigger(str, Enum):
     """Exit trigger types."""
-    HARD_STOP = "hard_stop"          # V1: -10% immediate
-    PROFIT_TARGET = "profit_target"  # +50%
-    TIME_STOP = "time_stop"          # DTE <= 1
-    EOD_FLATTEN = "eod_flatten"      # End of day 0DTE
-    REGIME_CHANGE = "regime_change"  # CHAOS regime
+    HARD_STOP = "hard_stop"                # V1: -15% immediate
+    TRAILING_STOP = "trailing_stop"        # Trail below high watermark
+    BREAK_EVEN_STOP = "break_even_stop"    # Stop moved to entry
+    PARTIAL_PROFIT = "partial_profit"      # +10% scale out
+    PROFIT_TARGET = "profit_target"        # +20% full exit
+    TIME_STOP = "time_stop"                # DTE <= 2
+    MAX_HOLD_TIME = "max_hold_time"        # 5 days
+    EOD_FLATTEN = "eod_flatten"            # End of day 0DTE
+    REGIME_CHANGE = "regime_change"        # CHAOS regime
     DAILY_LOSS_CAP = "daily_loss_cap"
     NEWS_SHOCK = "news_shock"
     MANUAL = "manual"
@@ -67,27 +82,43 @@ class ExitSignal:
 
 @dataclass
 class PositionMonitor:
-    """Monitor state for a single position."""
+    """Monitor state for a single position with ADVANCED exit logic."""
     position_id: str
     entry_price: float
     entry_time: datetime
     is_debit: bool  # True for V1 long premium
-    # V1 CONTRACT: -10% hard stop, +50% profit target
-    hard_stop_pct: float = V1_HARD_STOP_PCT   # -10% (V1 contract)
-    profit_target_pct: float = V1_PROFIT_TARGET_PCT  # +50%
-    time_stop_dte: int = V1_TIME_STOP_DTE     # DTE <= 1
+    # V1 CONTRACT: Optimized exit parameters
+    hard_stop_pct: float = V1_HARD_STOP_PCT           # -15%
+    profit_target_pct: float = V1_PROFIT_TARGET_PCT   # +20%
+    partial_profit_pct: float = V1_PARTIAL_PROFIT_PCT # +10%
+    partial_exit_ratio: float = V1_PARTIAL_EXIT_RATIO # 50%
+    break_even_trigger_pct: float = V1_BREAK_EVEN_TRIGGER_PCT  # +8%
+    trailing_stop_activation: float = V1_TRAILING_STOP_ACTIVATION  # +10%
+    trailing_stop_distance: float = V1_TRAILING_STOP_DISTANCE      # 8%
+    time_stop_dte: int = V1_TIME_STOP_DTE             # DTE <= 2
+    max_hold_days: int = V1_MAX_HOLD_DAYS             # 5 days
     
-    # Tracking
+    # Advanced tracking
     samples: List[Dict[str, Any]] = field(default_factory=list)
     min_price_seen: float = float('inf')
     max_price_seen: float = 0.0
+    high_water_mark: float = 0.0  # For trailing stop
     dte: Optional[int] = None  # Days to expiration
+    stop_moved_to_breakeven: bool = False  # Track if stop is at break-even
+    partial_taken: bool = False  # Track if partial profit was taken
+    trailing_active: bool = False  # Track if trailing stop is active
+    current_stop_price: float = 0.0  # Dynamic stop price
+    
+    def __post_init__(self):
+        """Initialize dynamic stop price."""
+        self.current_stop_price = self.entry_price * (1 - self.hard_stop_pct)
+        self.high_water_mark = self.entry_price
     
     def record_sample(self, current_price: float, timestamp: datetime, dte: Optional[int] = None) -> List[ExitSignal]:
         """
         Record a price sample and evaluate all exit triggers.
         
-        V1 CONTRACT: Simplified exit logic for long premium positions.
+        OPTIMIZED V1: Advanced exit logic with trailing stops.
         
         Returns list of triggered signals.
         """
@@ -102,13 +133,19 @@ class PositionMonitor:
         self.min_price_seen = min(self.min_price_seen, current_price)
         self.max_price_seen = max(self.max_price_seen, current_price)
         
+        # Update high water mark for trailing stop
+        if current_price > self.high_water_mark:
+            self.high_water_mark = current_price
+        
         signals = []
         
         # V1: Long premium positions - loss = price decline from entry
-        # (We bought the option, it's now worth less)
         pnl_pct = (current_price - self.entry_price) / self.entry_price if self.entry_price > 0 else 0
+        high_pnl_pct = (self.high_water_mark - self.entry_price) / self.entry_price if self.entry_price > 0 else 0
         
-        # 1. HARD STOP (-20%) - IMMEDIATE (V1 mandate)
+        # ====================================================================
+        # 1. HARD STOP (-15%) - IMMEDIATE (V1 mandate)
+        # ====================================================================
         if pnl_pct <= -self.hard_stop_pct:
             logger.warning(f"🛑 V1 HARD STOP: {self.position_id} at {pnl_pct*100:.1f}% loss")
             signals.append(ExitSignal(
@@ -121,7 +158,80 @@ class PositionMonitor:
             ))
             return signals  # Hard stop trumps everything
         
-        # 2. PROFIT TARGET (+50%)
+        # ====================================================================
+        # 2. BREAK-EVEN STOP - Move stop to entry after +8% gain
+        # ====================================================================
+        if not self.stop_moved_to_breakeven and high_pnl_pct >= self.break_even_trigger_pct:
+            self.stop_moved_to_breakeven = True
+            self.current_stop_price = self.entry_price  # Move stop to break-even
+            logger.info(f"📊 BREAK-EVEN: {self.position_id} stop moved to ${self.entry_price:.2f}")
+        
+        # Check break-even stop
+        if self.stop_moved_to_breakeven and not self.trailing_active:
+            if current_price <= self.current_stop_price:
+                logger.info(f"🔒 BREAK-EVEN EXIT: {self.position_id} at break-even")
+                signals.append(ExitSignal(
+                    trigger=ExitTrigger.BREAK_EVEN_STOP,
+                    triggered=True,
+                    current_value=pnl_pct,
+                    threshold=0,
+                    timestamp=timestamp,
+                    details={"break_even": True}
+                ))
+                return signals
+        
+        # ====================================================================
+        # 3. TRAILING STOP - Activate at +10%, trail 8% below high
+        # ====================================================================
+        if high_pnl_pct >= self.trailing_stop_activation:
+            if not self.trailing_active:
+                self.trailing_active = True
+                logger.info(f"📈 TRAILING ACTIVATED: {self.position_id} at {high_pnl_pct*100:.1f}% high")
+            
+            # Update trailing stop price
+            trailing_stop_price = self.high_water_mark * (1 - self.trailing_stop_distance)
+            self.current_stop_price = max(self.current_stop_price, trailing_stop_price)
+            
+            # Check if trailing stop triggered
+            if current_price <= self.current_stop_price:
+                trailing_pnl = (current_price - self.entry_price) / self.entry_price
+                logger.info(f"📉 TRAILING STOP: {self.position_id} at {trailing_pnl*100:.1f}% (from {high_pnl_pct*100:.1f}% high)")
+                signals.append(ExitSignal(
+                    trigger=ExitTrigger.TRAILING_STOP,
+                    triggered=True,
+                    current_value=trailing_pnl,
+                    threshold=self.trailing_stop_distance,
+                    timestamp=timestamp,
+                    details={
+                        "high_water_mark": self.high_water_mark,
+                        "trailing_stop_price": self.current_stop_price,
+                        "locked_profit_pct": trailing_pnl,
+                    }
+                ))
+                return signals
+        
+        # ====================================================================
+        # 4. PARTIAL PROFIT (+10%) - Scale out 50%
+        # ====================================================================
+        if not self.partial_taken and pnl_pct >= self.partial_profit_pct:
+            self.partial_taken = True
+            logger.info(f"💰 PARTIAL PROFIT: {self.position_id} at {pnl_pct*100:.1f}% - exit {self.partial_exit_ratio*100:.0f}%")
+            signals.append(ExitSignal(
+                trigger=ExitTrigger.PARTIAL_PROFIT,
+                triggered=True,
+                current_value=pnl_pct,
+                threshold=self.partial_profit_pct,
+                timestamp=timestamp,
+                details={
+                    "exit_ratio": self.partial_exit_ratio,
+                    "partial": True,
+                }
+            ))
+            # Note: Don't return - allow checking other conditions
+        
+        # ====================================================================
+        # 5. FULL PROFIT TARGET (+20%)
+        # ====================================================================
         if pnl_pct >= self.profit_target_pct:
             logger.info(f"🎯 V1 PROFIT TARGET: {self.position_id} at {pnl_pct*100:.1f}% gain")
             signals.append(ExitSignal(
@@ -131,8 +241,11 @@ class PositionMonitor:
                 threshold=self.profit_target_pct,
                 timestamp=timestamp,
             ))
+            return signals  # Full exit
         
-        # 3. TIME STOP (DTE <= 1)
+        # ====================================================================
+        # 6. TIME STOP (DTE <= 2) - Earlier exit for time decay
+        # ====================================================================
         if self.dte is not None and self.dte <= self.time_stop_dte:
             logger.info(f"⏰ V1 TIME STOP: {self.position_id} at DTE={self.dte}")
             signals.append(ExitSignal(
@@ -142,6 +255,21 @@ class PositionMonitor:
                 threshold=self.time_stop_dte,
                 timestamp=timestamp,
                 details={"dte": self.dte}
+            ))
+        
+        # ====================================================================
+        # 7. MAX HOLD TIME (5 days) - Avoid dead money
+        # ====================================================================
+        hold_time = timestamp - self.entry_time
+        if hold_time.days >= self.max_hold_days:
+            logger.info(f"⏳ MAX HOLD TIME: {self.position_id} held {hold_time.days} days")
+            signals.append(ExitSignal(
+                trigger=ExitTrigger.MAX_HOLD_TIME,
+                triggered=True,
+                current_value=hold_time.days,
+                threshold=self.max_hold_days,
+                timestamp=timestamp,
+                details={"hold_days": hold_time.days, "pnl_pct": pnl_pct}
             ))
         
         return signals

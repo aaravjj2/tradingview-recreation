@@ -12,6 +12,7 @@ These are NON-NEGOTIABLE constraints that must be enforced at the ENGINE level,
 not just the UI.
 """
 import pytest
+import os
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
@@ -22,11 +23,31 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from services.autopilot.config import (
     AutopilotConfig, RiskLimits, StrategyTemplate,
     V1_MAX_OPEN_POSITIONS, V1_MAX_TOTAL_EXPOSURE_USD,
-    V1_PER_POSITION_STOP_PCT, V1_PAPER_EQUITY, V1_TEMPLATES
+    V1_PER_POSITION_STOP_PCT, V1_PAPER_EQUITY, V1_TEMPLATES,
+    reset_config_cache,
 )
 from services.autopilot.exit_monitor import (
     ExitMonitor, PositionMonitor, ExitTrigger, V1_HARD_STOP_PCT
 )
+
+
+# Fixture to reset config before tests
+@pytest.fixture(autouse=True)
+def reset_config_before_tests():
+    """Reset config cache and remove saved config file before each test."""
+    reset_config_cache()
+    # Remove saved config file that may override defaults
+    config_path = Path(__file__).parent.parent / "autopilot_config.json"
+    if config_path.exists():
+        # Temporarily rename it
+        backup_path = config_path.with_suffix(".json.bak")
+        config_path.rename(backup_path)
+        yield
+        # Restore after test
+        if backup_path.exists():
+            backup_path.rename(config_path)
+    else:
+        yield
 
 
 class TestV1ContractConstants:
@@ -102,7 +123,10 @@ class TestPositionLimitEnforcement:
     def test_refuses_11th_position(self):
         """V1 Contract: Engine must refuse an 11th position."""
         from services.autopilot.unified_engine import UnifiedAutopilotEngine, UnifiedPosition
+        from services.autopilot.config import reset_config_cache
         
+        # Reset config to ensure V1 defaults
+        reset_config_cache()
         engine = UnifiedAutopilotEngine()
         
         # Create 10 mock positions (at the limit)
@@ -125,10 +149,13 @@ class TestPositionLimitEnforcement:
     def test_allows_under_limit(self):
         """V1 Contract: Engine allows trades under position limit."""
         from services.autopilot.unified_engine import UnifiedAutopilotEngine, UnifiedPosition
+        from services.autopilot.config import reset_config_cache
         
+        # Reset config to ensure V1 defaults
+        reset_config_cache()
         engine = UnifiedAutopilotEngine()
         
-        # Create 5 mock positions (under limit)
+        # Create 5 mock positions (under limit of 10)
         mock_positions = []
         for i in range(5):
             pos = Mock(spec=UnifiedPosition)

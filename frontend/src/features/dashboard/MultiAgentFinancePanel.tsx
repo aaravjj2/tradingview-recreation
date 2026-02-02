@@ -17,22 +17,13 @@
 import { useState, useCallback } from 'react';
 import {
     Bot, Brain, Globe, Radio, Zap, Search, TrendingUp, TrendingDown,
-    BarChart2, DollarSign, FileText, Target, AlertTriangle, CheckCircle2,
-    Send, Loader2, RefreshCw, ChevronDown, ChevronRight, ExternalLink
+    BarChart2, FileText, Target, AlertTriangle, CheckCircle2,
+    Send, Loader2
 } from 'lucide-react';
 import { cn } from '../../ui/utils';
 import { Badge } from '../../ui/Badge';
 
-const API_BASE = '/api/v1';
-
 // Types
-interface AgentResponse {
-    agent: string;
-    content: string;
-    confidence: number;
-    sources?: string[];
-    data?: Record<string, any>;
-}
 
 interface StockAnalysis {
     symbol: string;
@@ -303,18 +294,21 @@ export function MultiAgentFinancePanel() {
         }
 
         // Generate mock analysis results
-        const mockAnalyses: StockAnalysis[] = symbols.slice(0, 4).map(symbol => ({
-            symbol,
-            price: 150 + Math.random() * 200,
-            change: (Math.random() - 0.5) * 10,
-            change_pct: (Math.random() - 0.5) * 5,
-            recommendation: ['strong_buy', 'buy', 'hold', 'sell'][Math.floor(Math.random() * 4)] as any,
-            target_price: 160 + Math.random() * 200,
-            analyst_count: Math.floor(10 + Math.random() * 30),
-            news_sentiment: (Math.random() - 0.5) * 2,
-            technical_score: Math.random(),
-            fundamental_score: Math.random()
-        }));
+        const mockAnalyses: StockAnalysis[] = symbols.slice(0, 4).map(symbol => {
+            const recommendations: StockAnalysis['recommendation'][] = ['strong_buy', 'buy', 'hold', 'sell'];
+            return {
+                symbol,
+                price: 150 + Math.random() * 200,
+                change: (Math.random() - 0.5) * 10,
+                change_pct: (Math.random() - 0.5) * 5,
+                recommendation: recommendations[Math.floor(Math.random() * 4)],
+                target_price: 160 + Math.random() * 200,
+                analyst_count: Math.floor(10 + Math.random() * 30),
+                news_sentiment: (Math.random() - 0.5) * 2,
+                technical_score: Math.random(),
+                fundamental_score: Math.random()
+            };
+        });
 
         setAnalyses(mockAnalyses);
 

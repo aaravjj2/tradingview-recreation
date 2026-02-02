@@ -127,6 +127,7 @@ export interface TradeCandidate {
   status: CandidateStatus;
   selection_reason: string;
   rejection_reasons: string[];
+  rationale?: string;
   created_at: string;
 }
 

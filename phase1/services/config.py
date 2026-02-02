@@ -1,6 +1,10 @@
 """
 Phase 1: Deterministic Data & Bar Engine
 Core configuration and settings management.
+
+Secrets loading priority:
+1. PROFILE=prod → Environment variables ONLY (Heroku/production mode)
+2. PROFILE=dev (or unset) → Loads from keys.env files, then env vars override
 """
 
 import os
@@ -10,8 +14,16 @@ from pydantic import Field
 from functools import lru_cache
 
 
+# Check profile BEFORE any other imports to control secrets loading behavior
+PROFILE = os.environ.get("PROFILE", "dev")
+IS_PRODUCTION = PROFILE == "prod"
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment."""
+    
+    # Profile
+    profile: Literal["dev", "prod"] = Field(default="dev", description="Runtime profile (dev or prod)")
     
     # Database
     database_url: str = Field(
@@ -60,11 +72,22 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     log_format: Literal["json", "text"] = Field(default="json")
     debug_mode: bool = Field(default=False)
+
+    # ElevenLabs TTS
+    elevenlabs_api_key: Optional[str] = Field(default=None)
+    elevenlabs_voice_id: str = Field(default="21m00Tcm4TlvDq8ikWAM")  # Default "Rachel"
+    elevenlabs_model_id: str = Field(default="eleven_monolingual_v1")
+    elevenlabs_stability: float = Field(default=0.5)
+    elevenlabs_similarity_boost: float = Field(default=0.75)
     
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         extra = "ignore"
+    
+    def is_production(self) -> bool:
+        """Check if running in production mode."""
+        return self.profile == "prod"
     
     @property
     def timeframes_list(self) -> list[str]:
@@ -77,11 +100,15 @@ class Settings(BaseSettings):
         return [s.strip() for s in self.ingestion_symbols.split(",")]
 
 
-@lru_cache
-def get_settings() -> Settings:
-    """Get cached settings instance."""
-    # Try to load from keys.env in parent directory
-    # Try to load from keys.env in parent directories
+def _load_keys_env_if_dev() -> None:
+    """
+    Load keys.env files only in dev mode (PROFILE != "prod").
+    In production, environment variables must be set externally (Heroku Config Vars).
+    """
+    if IS_PRODUCTION:
+        print("[CONFIG] PROFILE=prod — skipping keys.env file loading (env vars only)")
+        return
+    
     current_dir = os.path.dirname(os.path.abspath(__file__))
     potential_paths = [
         os.path.join(current_dir, "..", "keys.env"),        # phase1/keys.env
@@ -92,10 +119,17 @@ def get_settings() -> Settings:
     for path in potential_paths:
         if os.path.exists(path):
             from dotenv import load_dotenv
-            print(f"Loading keys from: {path}")
+            print(f"[CONFIG] Loading keys from: {path}")
             load_dotenv(path)
-            break
+            return
     
+    print("[CONFIG] No keys.env file found (env vars may still be used)")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings instance."""
+    _load_keys_env_if_dev()
     return Settings()
 
 

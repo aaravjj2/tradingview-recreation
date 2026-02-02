@@ -11,6 +11,7 @@ import { UniverseEditor } from './UniverseEditor';
 import { IncidentsPanel } from './IncidentsPanel';
 import { RunHistory } from './RunHistory';
 import { AutopilotAgents } from './AutopilotAgents';
+import { AutopilotProposals } from './AutopilotProposals';
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-US', {
@@ -264,8 +265,13 @@ export const AutopilotDashboard: React.FC = () => {
           </div>
 
           {/* Positions Table */}
-          <div className="flex-1 overflow-hidden">
-            <AutopilotPositions />
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 overflow-hidden border-b border-gray-700">
+              <AutopilotPositions />
+            </div>
+            <div className="flex-1 overflow-hidden p-4 bg-gray-900/50">
+              <AutopilotProposals />
+            </div>
           </div>
         </div>
 

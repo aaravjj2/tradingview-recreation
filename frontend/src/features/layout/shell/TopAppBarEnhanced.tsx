@@ -17,7 +17,9 @@ import {
     CheckCircle2, XCircle, Activity, X, Loader2, Wifi, WifiOff, RefreshCw
 } from 'lucide-react';
 import { cn } from '../../../ui/utils';
+
 import { useStore } from '../../../state/store';
+import { VoiceControl } from '../../tts/VoiceControl';
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
@@ -137,7 +139,7 @@ export function TopAppBarEnhanced() {
         const _providers = ['alpaca_rest', 'alpaca_stream', 'finnhub', 'yfinance', 'groq', 'gemini'];
         void _providers; // List of providers we'll check
         const statuses: Record<string, HealthStatus> = {};
-        
+
         // Fetch from backend health endpoint
         try {
             const res = await fetch(`${API_BASE}/autopilot/broker/metrics`);
@@ -284,8 +286,8 @@ export function TopAppBarEnhanced() {
 
     // Format time
     const formatTime = (date: Date) => {
-        return date.toLocaleTimeString('en-US', { 
-            hour12: false, 
+        return date.toLocaleTimeString('en-US', {
+            hour12: false,
             timeZone: 'America/New_York',
             hour: '2-digit',
             minute: '2-digit',
@@ -318,7 +320,7 @@ export function TopAppBarEnhanced() {
     const unreadCount = notifications.filter(n => !n.read).length;
 
     return (
-        <header className="h-auto bg-panel-bg border-b border-border shrink-0 z-header">
+        <header className="h-auto bg-panel-bg border-b border-border shrink-0 z-header" data-testid="top-app-bar">
             {/* PAPER MODE Banner */}
             <div className="h-8 bg-amber-500/90 text-black flex items-center justify-center gap-2 text-sm font-bold" data-testid="topbar-paper-mode-banner">
                 <AlertTriangle size={16} />
@@ -359,11 +361,11 @@ export function TopAppBarEnhanced() {
                             disabled={loading || autopilotStatus?.kill_switch_active}
                             className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                                autopilotStatus?.state === 'running' 
+                                autopilotStatus?.state === 'running'
                                     ? "bg-green-500/20 text-green-400 border border-green-500/30"
                                     : autopilotStatus?.state === 'paused'
-                                    ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
-                                    : "bg-element-bg text-text-secondary border border-border"
+                                        ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                        : "bg-element-bg text-text-secondary border border-border"
                             )}
                             data-testid="autopilot-toggle"
                         >
@@ -404,18 +406,18 @@ export function TopAppBarEnhanced() {
 
                     {/* Last Cycle Status */}
                     {cycleStatus && (
-                        <div 
+                        <div
                             className={cn(
                                 "flex items-center gap-2 px-2 py-1 rounded text-xs",
                                 cycleStatus.status === 'success' ? "bg-green-500/10 text-green-400" :
-                                cycleStatus.status === 'failed' ? "bg-red-500/10 text-red-400" :
-                                "bg-yellow-500/10 text-yellow-400"
+                                    cycleStatus.status === 'failed' ? "bg-red-500/10 text-red-400" :
+                                        "bg-yellow-500/10 text-yellow-400"
                             )}
                             data-testid="last-cycle-status"
                         >
                             {cycleStatus.status === 'success' ? <CheckCircle2 size={12} /> :
-                             cycleStatus.status === 'failed' ? <XCircle size={12} /> :
-                             <AlertTriangle size={12} />}
+                                cycleStatus.status === 'failed' ? <XCircle size={12} /> :
+                                    <AlertTriangle size={12} />}
                             <span>Last: {cycleStatus.status}</span>
                             <span className="text-text-muted">{cycleStatus.time}</span>
                         </div>
@@ -432,10 +434,13 @@ export function TopAppBarEnhanced() {
 
                 {/* Right: Health + Search + Clock + Notifications */}
                 <div className="flex items-center gap-3">
+                    {/* Voice Control */}
+                    <VoiceControl />
+
                     {/* Health Chips */}
                     <div className="flex items-center gap-2" data-testid="health-chips">
                         {Object.entries(healthStatuses).slice(0, 6).map(([key, health]) => (
-                            <div 
+                            <div
                                 key={key}
                                 className="flex items-center gap-1.5 text-[10px]"
                                 title={`${health.provider}: ${health.status}${health.latency_ms ? ` (${health.latency_ms}ms)` : ''}`}
@@ -450,13 +455,13 @@ export function TopAppBarEnhanced() {
 
                     {/* WebSocket Status Pill */}
                     <div className="flex items-center gap-2">
-                        <div 
+                        <div
                             className={cn(
                                 "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs",
                                 wsState === 'CONNECTED' ? "bg-green-500/10 text-green-400" :
-                                wsState === 'CONNECTING' ? "bg-yellow-500/10 text-yellow-400" :
-                                wsState === 'DEGRADED' ? "bg-yellow-500/10 text-yellow-400" :
-                                "bg-red-500/10 text-red-400"
+                                    wsState === 'CONNECTING' ? "bg-yellow-500/10 text-yellow-400" :
+                                        wsState === 'DEGRADED' ? "bg-yellow-500/10 text-yellow-400" :
+                                            "bg-red-500/10 text-red-400"
                             )}
                             data-testid="ws-status-pill"
                             data-ws-status={wsState}
@@ -477,12 +482,12 @@ export function TopAppBarEnhanced() {
                             title="Force WebSocket Reconnect"
                             data-testid="ws-reconnect-btn"
                         >
-                            <RefreshCw 
-                                size={14} 
+                            <RefreshCw
+                                size={14}
                                 className={cn(
                                     "text-text-secondary",
                                     wsReconnecting && "animate-spin"
-                                )} 
+                                )}
                             />
                         </button>
                     </div>
@@ -557,7 +562,7 @@ export function TopAppBarEnhanced() {
                                         <div className="p-4 text-center text-text-secondary text-sm">No notifications</div>
                                     ) : (
                                         notifications.map(notif => (
-                                            <div 
+                                            <div
                                                 key={notif.id}
                                                 className={cn(
                                                     "px-3 py-2 border-b border-border hover:bg-element-bg transition-colors cursor-pointer",
@@ -566,9 +571,9 @@ export function TopAppBarEnhanced() {
                                             >
                                                 <div className="flex items-start gap-2">
                                                     {notif.type === 'error' ? <XCircle size={14} className="text-red-400 mt-0.5" /> :
-                                                     notif.type === 'warning' ? <AlertTriangle size={14} className="text-yellow-400 mt-0.5" /> :
-                                                     notif.type === 'success' ? <CheckCircle2 size={14} className="text-green-400 mt-0.5" /> :
-                                                     <Activity size={14} className="text-blue-400 mt-0.5" />}
+                                                        notif.type === 'warning' ? <AlertTriangle size={14} className="text-yellow-400 mt-0.5" /> :
+                                                            notif.type === 'success' ? <CheckCircle2 size={14} className="text-green-400 mt-0.5" /> :
+                                                                <Activity size={14} className="text-blue-400 mt-0.5" />}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="text-xs font-medium text-text truncate">{notif.title}</div>
                                                         <div className="text-[10px] text-text-secondary truncate">{notif.message}</div>

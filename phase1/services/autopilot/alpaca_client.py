@@ -541,6 +541,92 @@ class AlpacaBrokerClient:
             return False
     
     # -------------------------------------------------------------------------
+    # Flatten All (EOD Safety)
+    # -------------------------------------------------------------------------
+    
+    async def flatten_all(self, reason: str = "EOD Flatten") -> Dict[str, Any]:
+        """
+        Cancel all open orders and close all positions.
+        
+        CRITICAL SAFETY FUNCTION: Called at trading cutoff (2:15pm ET) to:
+        1. Cancel all open orders (stop new trades)
+        2. Close all positions (go to cash)
+        
+        This ensures we don't hold positions overnight on paper account.
+        
+        Returns:
+            Dict with results: {
+                "orders_cancelled": int,
+                "orders_failed": int,
+                "positions_closed": int,
+                "positions_failed": int,
+                "errors": List[str]
+            }
+        """
+        result = {
+            "orders_cancelled": 0,
+            "orders_failed": 0,
+            "positions_closed": 0,
+            "positions_failed": 0,
+            "errors": [],
+            "reason": reason,
+        }
+        
+        logger.warning(f"FLATTEN_ALL triggered: {reason}")
+        
+        # Step 1: Cancel all open orders
+        try:
+            open_orders = await self.list_orders(status="open")
+            logger.info(f"Found {len(open_orders)} open orders to cancel")
+            
+            for order in open_orders:
+                try:
+                    success = await self.cancel_order(order.id)
+                    if success:
+                        result["orders_cancelled"] += 1
+                        logger.info(f"Cancelled order {order.id} ({order.symbol})")
+                    else:
+                        result["orders_failed"] += 1
+                        result["errors"].append(f"Failed to cancel order {order.id}")
+                except Exception as e:
+                    result["orders_failed"] += 1
+                    result["errors"].append(f"Error cancelling order {order.id}: {e}")
+        except Exception as e:
+            result["errors"].append(f"Failed to list open orders: {e}")
+            logger.error(f"Failed to list open orders for flatten: {e}")
+        
+        # Step 2: Close all positions
+        try:
+            positions = await self.list_positions()
+            logger.info(f"Found {len(positions)} positions to close")
+            
+            for pos in positions:
+                try:
+                    close_result = await self.close_position(pos.symbol)
+                    if close_result:
+                        result["positions_closed"] += 1
+                        logger.info(f"Closed position {pos.symbol} ({pos.qty} shares)")
+                    else:
+                        result["positions_failed"] += 1
+                        result["errors"].append(f"Failed to close position {pos.symbol}")
+                except Exception as e:
+                    result["positions_failed"] += 1
+                    result["errors"].append(f"Error closing position {pos.symbol}: {e}")
+        except Exception as e:
+            result["errors"].append(f"Failed to list positions: {e}")
+            logger.error(f"Failed to list positions for flatten: {e}")
+        
+        # Log summary
+        logger.warning(
+            f"FLATTEN_ALL complete: "
+            f"Cancelled {result['orders_cancelled']} orders, "
+            f"Closed {result['positions_closed']} positions, "
+            f"Errors: {len(result['errors'])}"
+        )
+        
+        return result
+    
+    # -------------------------------------------------------------------------
     # Market Clock
     # -------------------------------------------------------------------------
     

@@ -12,10 +12,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Activity, TrendingUp, TrendingDown, DollarSign, Shield,
-    AlertTriangle, CheckCircle2, XCircle, Bot, Brain, Zap,
-    BarChart3, PieChart, LineChart, Target, Gauge, Clock,
-    ArrowUpRight, ArrowDownRight, Wallet, Eye, RefreshCw,
-    Sparkles, Globe, Radio, AlertCircle, Info, ChevronRight
+    AlertTriangle, Bot, Brain, Zap, Target, BarChart3, Info,
+    Wallet, RefreshCw, Sparkles, Globe, Radio, ChevronRight
 } from 'lucide-react';
 import { cn } from '../../ui/utils';
 import { Badge } from '../../ui/Badge';
@@ -87,22 +85,6 @@ const formatCurrency = (v: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
 
 const formatPercent = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(2)}%`;
-
-const formatCompact = (v: number) =>
-    new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v);
-
-// Risk Level Colors
-const getRiskColor = (score: number) => {
-    if (score <= 3) return 'text-up bg-up/10 border-up/30';
-    if (score <= 6) return 'text-warn bg-warn/10 border-warn/30';
-    return 'text-down bg-down/10 border-down/30';
-};
-
-const getRiskLabel = (score: number) => {
-    if (score <= 3) return 'LOW';
-    if (score <= 6) return 'MODERATE';
-    return 'HIGH';
-};
 
 // Mini Chart Component
 function SparklineChart({ data, positive }: { data: number[]; positive: boolean }) {
@@ -310,20 +292,20 @@ export function FinancialIntelligenceDashboard() {
 
                 // Map positions
                 if (data.positions) {
-                    setPositions(data.positions.map((p: any) => ({
-                        id: p.id,
-                        symbol: p.symbol,
-                        underlying: p.underlying || p.symbol,
+                    setPositions(data.positions.map((p: Record<string, unknown>) => ({
+                        id: String(p.id),
+                        symbol: String(p.symbol),
+                        underlying: String(p.underlying || p.symbol),
                         asset_type: p.asset_class === 'option' ? 'option' : 'equity',
-                        qty: p.quantity,
-                        avg_price: p.avg_cost,
-                        current_price: p.current_price,
-                        market_value: p.market_value,
-                        pnl: p.unrealized_pnl,
-                        pnl_percent: p.unrealized_pnl_pct / 100,
-                        dte: p.dte,
-                        option_type: p.option_type,
-                        strike: p.strike
+                        qty: Number(p.quantity),
+                        avg_price: Number(p.avg_cost),
+                        current_price: Number(p.current_price),
+                        market_value: Number(p.market_value),
+                        pnl: Number(p.unrealized_pnl),
+                        pnl_percent: Number(p.unrealized_pnl_pct) / 100,
+                        dte: p.dte != null ? Number(p.dte) : undefined,
+                        option_type: p.option_type ? String(p.option_type) : undefined,
+                        strike: p.strike != null ? Number(p.strike) : undefined
                     })));
                 }
             }
@@ -404,9 +386,16 @@ export function FinancialIntelligenceDashboard() {
     }, []);
 
     useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 30000);
-        return () => clearInterval(interval);
+        let mounted = true;
+        const load = async () => {
+            if (mounted) await fetchData();
+        };
+        load();
+        const interval = setInterval(load, 30000);
+        return () => {
+            mounted = false;
+            clearInterval(interval);
+        };
     }, [fetchData]);
 
     const isPnlPositive = useMemo(() => {
