@@ -48,6 +48,34 @@
 
 ---
 
+> [!IMPORTANT]
+> **⚡ Run in 3 Commands** (No API keys needed for demo)
+> ```bash
+> # 1. Clone the repo
+> git clone https://github.com/aaravjj2/tradingview-recreation.git
+> cd tradingview-recreation
+> 
+> # 2. Start the demo (uses mock data)
+> ./scripts/run_demo.sh
+> 
+> # 3. Open in browser
+> # Frontend: http://localhost:5100
+> # API Docs: http://localhost:8000/docs
+> ```
+> **Or run manually:**
+> ```bash
+> # Terminal 1: Backend
+> cd phase1 && pip install -r requirements.txt && uvicorn services.api.main:app --port 8000
+> 
+> # Terminal 2: Frontend  
+> cd frontend && npm install && npm run dev
+> ```
+
+> [!CAUTION]
+> **Disclaimer**: This is a **paper trading prototype** for educational and demonstration purposes only. It is **NOT investment advice**. Do not use for real trading without thorough testing. TradingView® is a trademark of TradingView Inc. This project is not affiliated with or endorsed by TradingView Inc.
+
+---
+
 ## 🎯 What is This Project?
 
 **TradingView Recreation** is a comprehensive, production-ready market analysis platform that recreates and extends the functionality of professional trading platforms like TradingView and Bloomberg Terminal. Built for serious traders, quantitative researchers, and financial analysts, it provides:

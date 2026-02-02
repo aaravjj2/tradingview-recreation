@@ -1,65 +1,122 @@
-# Python
+# ===========================================
+# SECRETS - NEVER COMMIT
+# ===========================================
+*.env
+.env
+.env.*
+.env.local
+.env.*.local
+keys.env
+phase1/keys.env
+keys.env.local
+*.pem
+*.key
+*.crt
+*.secret
+secrets*
+credentials.*
+
+# ===========================================
+# PYTHON
+# ===========================================
 venv/
 .venv/
 env/
 .env/
 __pycache__/
-
 *.py[cod]
 *$py.class
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# Environment files
-.env
-*.env
-.env.*
-keys.env
-phase1/keys.env
-keys.env.local
-.env.local
-*.pem
-*.key
-*.crt
-# Local secret files
-*.secret
-secrets*
-
-# Caches and test artifacts
-.cache/
-.pytest_cache/
-coverage/
-htmlcov/
-test-results/
-playwright-report/
-blob-report/
-.npm/
-
-
-# Node / frontend
+# ===========================================
+# NODE / FRONTEND
+# ===========================================
 node_modules/
 frontend/node_modules/
 frontend/dist/
+.next/
+.vite/
+.npm/
+package-lock.json.bak
 
-# Build / dist
+# ===========================================
+# BUILD / DIST
+# ===========================================
 build/
 dist/
+out/
+coverage/
+htmlcov/
 
-# Logs
+# ===========================================
+# TESTING / CI
+# ===========================================
+.cache/
+.pytest_cache/
+test-results/
+playwright-report/
+blob-report/
+.nyc_output/
+junit.xml
+*.lcov
+
+# ===========================================
+# LOGS & RUNTIME STATE
+# ===========================================
 logs/
 *.log
 *.out
+nohup.out
+uvicorn.out
 
+# ===========================================
+# DATABASES
+# ===========================================
+*.db
+*.sqlite
+*.sqlite3
+phase1.db
 
-# IDEs
+# ===========================================
+# IDE / EDITOR
+# ===========================================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
 
-# OS files
+# ===========================================
+# OS FILES
+# ===========================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
 
-# Misc
-*.sqlite3
-*.db
+# ===========================================
+# WINDOWS ADS (Alternate Data Streams)
+# ===========================================
+*:Zone.Identifier
+Zone.Identifier
+
+# ===========================================
+# PLAYWRIGHT MCP (local screenshots)
+# ===========================================
+.playwright-mcp/
+
+# ===========================================
+# PROJECT SPECIFIC
+# ===========================================
+cboe_pipeline/data/
 .envrc
 
-# Cboe Pipeline Data
-cboe_pipeline/data/
