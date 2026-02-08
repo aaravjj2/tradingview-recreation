@@ -33,11 +33,14 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-mock>=3.12.0
+
+# HTTP / async clients used in tests
 httpx>=0.25.0
 aiosqlite>=0.19.0
 
-# Development
+# Development / lint & format
 black>=23.11.0
-ruff>=0.1.6
+ruff>=0.28.0
 mypy>=1.7.0
-python-multipart
+pre-commit>=3.4.0
+python-multipart>=0.0.6
