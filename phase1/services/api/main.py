@@ -19,7 +19,7 @@ import structlog
 
 from ..config import get_settings
 from ..persistence import init_database, get_database
-from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast, intelligence, risk_desk, strategy_lab, backtest, unified_runs
+from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast, intelligence, risk_desk, strategy_lab, backtest, unified_runs, ticker
 from .websocket import router as ws_router
 from .health_router import router as health_router
 from .verification_routes import router as verification_router
@@ -199,6 +199,8 @@ def create_app() -> FastAPI:
     app.include_router(profiles.router, prefix="/api/v1/profiles", tags=["profiles"])
     app.include_router(patterns.router, prefix="/api/v1/patterns", tags=["patterns"])
     app.include_router(fundamentals.router, prefix="/api/v1/fundamentals", tags=["fundamentals"])
+    # Ticker Resolution (v1.10)
+    app.include_router(ticker.router, prefix="/api/v1/ticker", tags=["ticker"])
     app.include_router(automation.router, prefix="/api/v1", tags=["automation"])
     app.include_router(forecast.router, prefix="/api/v1", tags=["forecast"])
     app.include_router(intelligence.router, prefix="/api/v1", tags=["intelligence"])
