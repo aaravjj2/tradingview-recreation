@@ -31,7 +31,7 @@ const MOCK_POSITIONS: Position[] = [
 ];
 
 export function PositionsTile({ tileId: _tileId, isMaximized: _isMaximized }: TileProps) {
-    const [positions, setPositions] = useState<Position[]>(MOCK_POSITIONS);
+    const [positions, _setPositions] = useState<Position[]>(MOCK_POSITIONS);
 
     const totalValue = positions.reduce((sum, p) => sum + p.marketValue, 0);
     const totalPL = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);

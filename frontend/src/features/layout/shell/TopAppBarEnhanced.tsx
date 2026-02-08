@@ -20,6 +20,8 @@ import { cn } from '../../../ui/utils';
 
 import { useStore } from '../../../state/store';
 import { VoiceControl } from '../../tts/VoiceControl';
+import { DataSourceSelector } from '../../data/DataSourceSelector';
+import type { DataSourceId } from '../../data/providers';
 
 const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
@@ -76,6 +78,7 @@ export function TopAppBarEnhanced() {
     const [loading, setLoading] = useState(false);
     const [marketTime, setMarketTime] = useState(new Date());
     const [wsReconnecting, setWsReconnecting] = useState(false);
+    const [dataSource, setDataSource] = useState<DataSourceId>('fixture');
 
     // WebSocket state from store
     const wsState = useStore(state => state.wsState);
@@ -491,6 +494,11 @@ export function TopAppBarEnhanced() {
                             />
                         </button>
                     </div>
+
+                    <div className="h-4 w-px bg-border" />
+
+                    {/* Data Source Selector */}
+                    <DataSourceSelector value={dataSource} onChange={setDataSource} />
 
                     <div className="h-4 w-px bg-border" />
 

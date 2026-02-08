@@ -13,6 +13,7 @@ export interface RiskLimits {
   max_daily_loss: number;
   max_open_positions: number;
   max_positions_per_underlying: number;
+  max_total_exposure_usd?: number;
   max_positions_per_cluster?: number;
   max_cluster_risk_pct?: number;
   max_cluster_concentration?: number;
@@ -149,6 +150,8 @@ export interface PortfolioState {
   greeks: PositionGreeks;
   symbol_exposure: Record<string, number>;
   cluster_exposure: Record<string, number>;
+  positions?: unknown[];
+  total_exposure?: number;
 }
 
 export interface CycleResult {

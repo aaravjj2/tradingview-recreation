@@ -19,7 +19,7 @@ import structlog
 
 from ..config import get_settings
 from ..persistence import init_database, get_database
-from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast, intelligence
+from .routes import bars, ingest, parity, debug, clock, drawings, strategies, portfolio, alerts, versions, runs, packages, metrics, incidents, notes, reports, options, profiles, patterns, fundamentals, automation, forecast, intelligence, risk_desk, strategy_lab, backtest, unified_runs
 from .websocket import router as ws_router
 from .health_router import router as health_router
 from .verification_routes import router as verification_router
@@ -202,6 +202,12 @@ def create_app() -> FastAPI:
     app.include_router(automation.router, prefix="/api/v1", tags=["automation"])
     app.include_router(forecast.router, prefix="/api/v1", tags=["forecast"])
     app.include_router(intelligence.router, prefix="/api/v1", tags=["intelligence"])
+    app.include_router(risk_desk.router, prefix="/api", tags=["risk-desk"])    
+    # Strategy Lab and Backtest (NEW)
+    app.include_router(strategy_lab.router, tags=["strategy_lab"])
+    app.include_router(backtest.router, tags=["backtest"])
+    # Unified Run Ledger (v1.5)
+    app.include_router(unified_runs.router, tags=["unified-runs"])
     # UNIFIED AUTOPILOT ROUTER - This is the ONLY autopilot API
     app.include_router(unified_autopilot_router, prefix="/api/v1", tags=["autopilot"])
     app.include_router(ws_router, prefix="/ws", tags=["websocket"])

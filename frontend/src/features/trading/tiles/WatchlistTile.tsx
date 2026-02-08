@@ -35,7 +35,7 @@ const MOCK_WATCHLIST: WatchlistItem[] = [
 ];
 
 export function WatchlistTile({ tileId: _tileId, isMaximized: _isMaximized }: TileProps) {
-    const [watchlist, setWatchlist] = useState<WatchlistItem[]>(MOCK_WATCHLIST);
+    const [watchlist, _setWatchlist] = useState<WatchlistItem[]>(MOCK_WATCHLIST);
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredList = watchlist.filter(item =>

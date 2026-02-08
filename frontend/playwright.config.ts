@@ -15,9 +15,9 @@ export default defineConfig({
     ],
     use: {
         baseURL,
-        trace: 'on-first-retry',
+        trace: 'on',  // Capture trace for ALL tests (required for Week 3 proof pack)
         screenshot: 'on',
-        video: 'retain-on-failure',
+        video: 'on',  // Capture video for ALL tests (required for Week 3 proof pack)
         headless: true,  // Run without browser window
         channel: 'chrome',  // Use installed Chrome, not Chromium
         launchOptions: {

@@ -117,6 +117,13 @@ Zone.Identifier
 # ===========================================
 # PROJECT SPECIFIC
 # ===========================================
+# Playwright / test artifacts and generated reports
+artifacts/
+frontend/artifacts/
+frontend/e2e-results/
+frontend/playwright-report-*
+
+# Project-specific data and local configs
 cboe_pipeline/data/
 .envrc
 

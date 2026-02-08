@@ -190,7 +190,7 @@ export const SuperGraph: React.FC<SuperGraphProps> = ({
                         tickLine={{ stroke: theme.axis }}
                         axisLine={{ stroke: theme.axis }}
                         width={50}
-                        tickFormatter={(v) => formatTooltip?.(v) || v.toLocaleString()}
+                        tickFormatter={(v: number) => formatTooltip?.(v) || v.toLocaleString()}
                     />
                     {showTooltip && (
                         <Tooltip

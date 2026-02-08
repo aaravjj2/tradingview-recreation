@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { audioQueue } from './AudioQueue';
 
 interface TTSStatus {
@@ -8,7 +8,7 @@ interface TTSStatus {
 }
 
 export const VoiceControl = () => {
-    const [enabled, setEnabled] = useState(false);
+    const [_enabled, _setEnabled] = useState(false);
     const [muted, setMuted] = useState(true);
     const [volume, setVolume] = useState(0.8);
     const [status, setStatus] = useState<TTSStatus | null>(null);

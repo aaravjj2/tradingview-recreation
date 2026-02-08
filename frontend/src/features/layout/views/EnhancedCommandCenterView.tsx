@@ -180,6 +180,19 @@ export function EnhancedCommandCenterView() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {/* Start Risk Desk Demo Quick Action */}
+                        <button
+                            onClick={() => {
+                                // Dispatch custom event for Shell to navigate
+                                window.dispatchEvent(new CustomEvent('navigate-risk-desk', { detail: { loadDemo: true } }));
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
+                            data-testid="start-risk-desk-demo-btn"
+                        >
+                            <TrendingUp size={14} />
+                            Start Risk Desk Demo
+                        </button>
+
                         <button
                             onClick={fetchData}
                             disabled={loading}

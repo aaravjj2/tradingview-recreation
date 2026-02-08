@@ -18,6 +18,7 @@ import { AutomationView } from '../views/AutomationView';
 import { IncidentsView } from '../views/IncidentsView';
 import { OptionsView } from '../views/OptionsView';
 import { AutopilotView } from '../views/AutopilotView';
+import { BacktestPanel } from '../../options/backtest';
 import { OrdersView } from '../views/OrdersView';
 import { RunsAuditView } from '../views/RunsAuditView';
 import { ToastProvider } from '../../../ui/Toast';
@@ -101,6 +102,27 @@ export function Shell() {
         return () => document.removeEventListener('keydown', down);
     }, [setMode, setActiveWorkspace, activeView]);
 
+    // Listen for Risk Desk navigation event from Dashboard quick action
+    useEffect(() => {
+        const handleNavigateRiskDesk = () => {
+            setActiveView('options');
+        };
+
+        const handleNavigateView = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail && typeof detail === 'string') {
+                setActiveView(detail as ViewId);
+            }
+        };
+
+        window.addEventListener('navigate-risk-desk', handleNavigateRiskDesk as EventListener);
+        window.addEventListener('navigate-view', handleNavigateView as EventListener);
+        return () => {
+            window.removeEventListener('navigate-risk-desk', handleNavigateRiskDesk as EventListener);
+            window.removeEventListener('navigate-view', handleNavigateView as EventListener);
+        };
+    }, []);
+
     // Sync mode with view
     useEffect(() => {
         if (activeView === 'replay') {
@@ -156,6 +178,8 @@ export function Shell() {
                 return <EnhancedCommandCenterView />;
             case 'options':
                 return <OptionsView />;
+            case 'backtest':
+                return <BacktestPanel />;
             case 'autopilot':
                 return <AutopilotView />;
             case 'replay':

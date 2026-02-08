@@ -13,7 +13,7 @@
 import {
     LayoutDashboard, Wallet, History, Layers, Settings,
     ChevronLeft, ChevronRight, BarChart3, ListOrdered, Bot, 
-    AlertTriangle, TrendingUp, Activity, Clock
+    AlertTriangle, TrendingUp, Activity, Clock, FlaskConical
 } from 'lucide-react';
 import { cn } from '../../../ui/utils';
 import { useAppStore } from '../../../state/appStore';
@@ -27,6 +27,7 @@ export type ViewId =
     | 'settings'
     | 'monitor'
     | 'options'
+    | 'backtest'
     | 'autopilot'
     | 'replay'
     | 'alerts'
@@ -63,6 +64,7 @@ const primaryNavItems: { id: ViewId; icon: React.ReactNode; label: string; short
 const secondaryNavItems: { id: ViewId; icon: React.ReactNode; label: string; shortcut: string }[] = [
     { id: 'monitor', icon: <BarChart3 size={20} />, label: 'Chart', shortcut: '⌘1' },
     { id: 'options', icon: <TrendingUp size={20} />, label: 'Options', shortcut: '⌘2' },
+    { id: 'backtest', icon: <FlaskConical size={20} />, label: 'Backtests', shortcut: '⌘B' },
     { id: 'autopilot', icon: <Bot size={20} />, label: 'Autopilot', shortcut: '⌘A' },
     { id: 'replay', icon: <Clock size={20} />, label: 'Replay', shortcut: '⌘3' },
     { id: 'alerts', icon: <AlertTriangle size={20} />, label: 'Alerts', shortcut: '⌘4' },

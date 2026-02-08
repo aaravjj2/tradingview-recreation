@@ -281,7 +281,8 @@ class TestAlertsEngine:
         # Just verify callback was registered
         assert len(engine._ws_callbacks) == 1
     
-    def test_trigger_history(self, engine):
+    @pytest.mark.asyncio
+    async def test_trigger_history(self, engine):
         condition = AlertCondition(
             condition_type=AlertConditionType.PRICE_ABOVE,
             symbol="AAPL",
@@ -290,9 +291,7 @@ class TestAlertsEngine:
         alert = engine.create_alert("Test", condition, [DeliveryMethod.WEBSOCKET])
         
         # Process to trigger
-        asyncio.get_event_loop().run_until_complete(
-            engine.process_price_update("AAPL", 201.0)
-        )
+        await engine.process_price_update("AAPL", 201.0)
         
         history = engine.get_trigger_history(alert.id)
         assert len(history) >= 1
